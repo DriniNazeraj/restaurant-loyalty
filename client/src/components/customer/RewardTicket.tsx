@@ -15,7 +15,12 @@ type RewardTicketProps = {
 
 export function RewardTicket({ code, title, guestName, status, redeemedAt, expiresAt, terms }: RewardTicketProps) {
   const band =
-    status === "redeemed" ? "bg-success text-white" : status === "expired" ? "bg-ink-muted text-white" : "bg-gold text-ink";
+    // Theme band colours (§10.3): ticket = --ticket/--ticket-foreground; text always on its own *-foreground pair.
+    status === "redeemed"
+      ? "bg-success text-success-foreground"
+      : status === "expired"
+        ? "bg-muted text-foreground"
+        : "bg-ticket text-ticket-foreground";
   const bandLabel = status === "redeemed" ? "ENJOYED ✓" : status === "expired" ? "EXPIRED" : title.toUpperCase();
   const line =
     status === "redeemed"
@@ -26,7 +31,7 @@ export function RewardTicket({ code, title, guestName, status, redeemedAt, expir
 
   return (
     <article
-      className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl bg-surface shadow-lg"
+      className="theme-card relative mx-auto w-full max-w-md overflow-hidden rounded-2xl bg-surface shadow-lg"
       data-status={status}
       data-testid="reward-ticket"
     >

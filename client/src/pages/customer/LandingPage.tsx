@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Controller, useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { Link } from "@/lib/router";
 import { useNavigate, useParams } from "@/lib/router-hooks";
-import { AlertCircleIcon, Loader2Icon } from "lucide-react";
+import { AlertCircleIcon, ArrowRightIcon, Loader2Icon } from "lucide-react";
 import { AlreadyClaimedCard } from "@/components/customer/AlreadyClaimedCard";
 import { ConsentRow } from "@/components/customer/ConsentRow";
 import { CustomerLayout } from "@/components/customer/CustomerLayout";
@@ -181,7 +181,7 @@ export default function LandingPage() {
   if (restaurantState.kind === "not_found") {
     return (
       <CustomerLayout restaurantName="">
-        <div className="mt-8 rounded-2xl bg-surface p-6 shadow-sm">
+        <div className="theme-card mt-8 rounded-2xl bg-surface p-6 shadow-sm">
           <h1 className="font-heading text-2xl font-bold text-ink">We couldn't find this restaurant</h1>
           <p className="mt-2 text-ink-muted">Check the QR code on your table, or ask your waiter.</p>
         </div>
@@ -192,16 +192,21 @@ export default function LandingPage() {
   const ended = offerEnded || restaurant?.offerActive === false;
 
   return (
-    <CustomerLayout restaurantName={restaurantName} gap="gap-3">
+    <CustomerLayout
+      restaurantName={restaurantName}
+      gap="gap-3"
+      hero={
+        <>
+          <p className="min-h-5 text-sm font-semibold text-white" data-testid="hero-eyebrow">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
+          <OfferHeadline rewardTitle={rewardTitle} />
+          <p className="mt-1 text-white">{PH.offerSub}</p>
+        </>
+      }
+    >
       {masked ? (
         <AlreadyClaimedCard last2={masked.last2} status={masked.status} />
       ) : (
         <>
-          <section>
-            <p className="min-h-5 text-sm font-semibold text-brand">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
-            <OfferHeadline rewardTitle={rewardTitle} />
-            <p className="mt-1 text-ink-muted">{PH.offerSub}</p>
-          </section>
 
           {existingTicket && !ended ? (
             <p className="rounded-xl bg-brand-soft px-4 py-3 text-sm text-ink">
@@ -220,11 +225,11 @@ export default function LandingPage() {
           ) : null}
 
           {ended ? (
-            <div className="rounded-2xl bg-surface p-6 shadow-sm">
+            <div className="theme-card rounded-2xl bg-surface p-6 shadow-sm">
               <p className="text-lg text-ink">This offer has ended. Thanks for visiting {restaurantName}.</p>
             </div>
           ) : (
-            <form className="rounded-2xl bg-surface p-4 shadow-sm" onSubmit={submit} noValidate>
+            <form className="theme-card rounded-2xl bg-surface p-4 shadow-sm" onSubmit={submit} noValidate>
               <div className="flex flex-col gap-4">
                 <TextField
                   id="name"
@@ -240,7 +245,7 @@ export default function LandingPage() {
                   <div className="flex gap-2">
                     <select
                       aria-label="Country code"
-                      className="h-12 w-[6.75rem] shrink-0 rounded-xl border border-line bg-surface px-2 text-base text-ink"
+                      className="h-12 w-[6.75rem] shrink-0 rounded-xl border border-input bg-surface px-2 text-base text-ink"
                       {...form.register("countryCode")}
                     >
                       {COUNTRY_CODES.map((c) => (
@@ -351,17 +356,18 @@ export default function LandingPage() {
                   type="submit"
                   data-testid="claim-submit"
                   disabled={isSubmitting || restaurantState.kind === "loading"}
-                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-center text-lg leading-tight font-semibold text-brand-fg transition-colors hover:bg-brand/90 disabled:opacity-60"
+                  className="btn-primary btn-cta flex h-14 w-full items-center justify-center gap-2 bg-primary px-4 text-center leading-tight text-primary-foreground transition-[filter,background-color,transform,box-shadow] disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2Icon className="size-5 animate-spin" aria-hidden />
                       Getting your code…
                     </>
-                  ) : rewardLower ? (
-                    `Get my ${rewardLower}`
                   ) : (
-                    PH.ctaFallback
+                    <>
+                      {rewardLower ? `Get my ${rewardLower}` : PH.ctaFallback}
+                      <ArrowRightIcon className="btn-arrow size-4" aria-hidden />
+                    </>
                   )}
                 </button>
                 <p id="consent-note" className="text-xs text-ink-muted">
@@ -376,7 +382,8 @@ export default function LandingPage() {
   );
 }
 
-const H1_CLASS = "font-heading text-3xl leading-tight font-bold text-ink min-[400px]:text-4xl";
+/** Size per theme via --h1-size / --h1-size-sm (styles/themes.css), white on the hero photo. */
+const H1_CLASS = "theme-h1 font-heading text-balance text-white";
 
 /**
  * DESIGN.md §8c: "{rewardTitle} on us" when it fits on 2 lines, otherwise just "{rewardTitle}".
@@ -414,7 +421,7 @@ function OfferHeadline({ rewardTitle }: { rewardTitle: string }) {
 
 function inputClass(invalid: boolean): string {
   return `h-12 w-full min-w-0 rounded-xl border bg-surface px-3 text-base text-ink outline-none ${
-    invalid ? "border-danger" : "border-line"
+    invalid ? "border-danger" : "border-input"
   }`;
 }
 

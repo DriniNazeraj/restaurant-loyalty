@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { LogOutIcon, SettingsIcon } from "lucide-react";
 import { toast } from "sonner";
-import "@/fonts/staff.ts";
 import "@/fonts/reward-mono.ts";
 import { BottomTabBar } from "@/components/staff/BottomTabBar";
 import { STAFF_TABS } from "@/components/staff/staff-nav";

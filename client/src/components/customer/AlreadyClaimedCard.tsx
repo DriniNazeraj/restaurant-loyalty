@@ -18,7 +18,7 @@ export function AlreadyClaimedCard({ last2, status, firstName }: AlreadyClaimedC
   return (
     <section
       data-testid="claim-already"
-      className="rounded-2xl border border-line bg-surface p-6 shadow-sm"
+      className="theme-card rounded-2xl border border-line bg-surface p-6 shadow-sm"
       aria-live="polite"
     >
       <TicketCheckIcon className="size-8 text-ink-muted" aria-hidden />

@@ -62,7 +62,7 @@ export default function RewardPage() {
   if (missing) {
     return (
       <CustomerLayout restaurantName={restaurantName}>
-        <div className="mt-6 rounded-2xl bg-surface p-6 shadow-sm">
+        <div className="theme-card mt-6 rounded-2xl bg-surface p-6 shadow-sm">
           <h1 className="font-heading text-2xl font-bold text-ink">We can't find this reward</h1>
           <p className="mt-2 text-ink-muted">The link may be incomplete. Ask your waiter, they can find it with your phone number.</p>
           <Link className="mt-4 inline-block font-semibold text-brand underline" to={`/r/${slug}`}>

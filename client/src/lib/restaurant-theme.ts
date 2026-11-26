@@ -1,10 +1,11 @@
-const DEFAULT_BRAND = "#B83A22";
+import { applyRestaurantTint } from "@/lib/theme";
 
-/** Sets --brand on :root so restaurant colour is a CSS variable (DESIGN.md §2). */
+/**
+ * Restaurant brand colour tints the active theme's primary (DESIGN.md §2 / §10.2).
+ * Ignored while the theme demo switcher is on, so themes compare cleanly.
+ */
 export function applyRestaurantTheme(brandColor?: string | null): void {
-  const root = document.documentElement;
-  root.setAttribute("data-restaurant", "");
-  root.style.setProperty("--brand", brandColor || DEFAULT_BRAND);
+  applyRestaurantTint(brandColor);
 }
 
 export function contrastRatioAgainstWhite(hex: string): number | null {

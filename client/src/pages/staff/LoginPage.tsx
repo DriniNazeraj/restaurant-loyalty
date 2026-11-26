@@ -5,7 +5,6 @@ import { useLocationState, useNavigate } from "@/lib/router-hooks";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react";
 import * as z from "zod/mini";
-import "@/fonts/staff.ts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";

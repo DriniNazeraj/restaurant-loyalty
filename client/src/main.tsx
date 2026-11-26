@@ -2,6 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { clearLegacyThemeStorage, loadActiveThemeFonts } from "@/lib/theme";
+
+clearLegacyThemeStorage();
+loadActiveThemeFonts();
 
 const root = document.getElementById("root");
 if (!root) {

@@ -21,7 +21,7 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
   }
   if (status === "ready") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-olive px-2 py-0.5 text-xs font-medium text-white">
+      <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
         <CheckCircle2Icon className="size-3" aria-hidden /> Ready
       </span>
     );

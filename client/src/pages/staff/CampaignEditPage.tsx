@@ -241,7 +241,7 @@ export default function CampaignEditPage() {
           <p className="text-sm font-medium text-ink-muted">Preview</p>
           <div className="mt-4 flex flex-col items-start gap-1">
             <p className="text-xs text-ink-muted">{session?.restaurant.name}</p>
-            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white px-4 py-3 whitespace-pre-wrap text-ink shadow-sm" data-testid="campaign-preview">
+            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-card px-4 py-3 whitespace-pre-wrap text-card-foreground shadow-sm" data-testid="campaign-preview">
               {preview || <span className="text-ink-muted">Your message shows here.</span>}
             </div>
           </div>

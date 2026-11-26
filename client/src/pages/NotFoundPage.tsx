@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import "@/fonts/customer.ts";
 import { readDocumentMeta, setDocumentMeta } from "@/lib/document-meta";
 import { PH } from "@/lib/placeholders";
 
