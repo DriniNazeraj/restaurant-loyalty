@@ -197,9 +197,9 @@ export default function LandingPage() {
       gap="gap-3"
       hero={
         <>
-          <p className="min-h-5 text-sm font-semibold text-white/85">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
+          <p className="min-h-5 text-sm font-semibold text-white">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
           <OfferHeadline rewardTitle={rewardTitle} />
-          <p className="mt-1 text-white/85">{PH.offerSub}</p>
+          <p className="mt-1 text-white">{PH.offerSub}</p>
         </>
       }
     >
@@ -245,7 +245,7 @@ export default function LandingPage() {
                   <div className="flex gap-2">
                     <select
                       aria-label="Country code"
-                      className="h-12 w-[6.75rem] shrink-0 rounded-xl border border-line bg-surface px-2 text-base text-ink"
+                      className="h-12 w-[6.75rem] shrink-0 rounded-xl border border-input bg-surface px-2 text-base text-ink"
                       {...form.register("countryCode")}
                     >
                       {COUNTRY_CODES.map((c) => (
@@ -383,7 +383,7 @@ export default function LandingPage() {
 }
 
 /** Size per theme via --h1-size / --h1-size-sm (styles/themes.css), white on the hero photo. */
-const H1_CLASS = "theme-h1 font-heading text-white";
+const H1_CLASS = "theme-h1 font-heading text-balance text-white";
 
 /**
  * DESIGN.md §8c: "{rewardTitle} on us" when it fits on 2 lines, otherwise just "{rewardTitle}".
@@ -421,7 +421,7 @@ function OfferHeadline({ rewardTitle }: { rewardTitle: string }) {
 
 function inputClass(invalid: boolean): string {
   return `h-12 w-full min-w-0 rounded-xl border bg-surface px-3 text-base text-ink outline-none ${
-    invalid ? "border-danger" : "border-line"
+    invalid ? "border-danger" : "border-input"
   }`;
 }
 

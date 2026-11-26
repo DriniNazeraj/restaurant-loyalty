@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 /**
  * DESIGN.md §10: five themes as `html[data-theme]` CSS variable blocks (styles/themes.css).
- * The DEMO bits (switcher, localStorage, ?theme=, ?themes=1) are temporary; see §10.4 and
+ * The DEMO bits (switcher, sessionStorage, ?theme=, ?themes=1) are temporary; see §10.4 and
  * the removal checklist in client/public/hero/CREDITS.md / the PR body.
  */
 export const THEME_IDS = ["trattoria", "minimal", "luxe", "cafe", "rustic"] as const;
@@ -103,17 +103,26 @@ export function isThemeDemoEnabled(): boolean {
   }
 }
 
-/** DEMO: instant switch = one attribute; fonts load lazily; choice persists. */
+/** DEMO: instant switch = one attribute; fonts load lazily; choice stays in this tab. */
 export function setTheme(id: ThemeId): void {
   void FONT_LOADERS[id]();
   document.documentElement.dataset.theme = id;
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, id);
+    sessionStorage.setItem(THEME_STORAGE_KEY, id);
   } catch {
     // private mode: the switch still works for this page view
   }
-  if (isThemeDemoEnabled()) clearRestaurantTint();
+  if (isDemoActiveInTab()) clearRestaurantTint();
   window.dispatchEvent(new Event(THEME_EVENT));
+}
+
+/** Clear the pre-r1 localStorage key so a leftover pick can't hide the restaurant tint. */
+export function clearLegacyThemeStorage(): void {
+  try {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 const THEME_EVENT = "rl-theme-change";
@@ -130,15 +139,14 @@ export function useActiveTheme(): ThemeId {
 const TINT_PROPS = ["--primary", "--primary-foreground", "--ring"] as const;
 
 /**
- * Per-restaurant brand colour tints the theme's primary (v1 behaviour). §10.2: while the demo
- * switcher is on, the theme wins and the restaurant colour is ignored.
+ * Per-restaurant brand colour tints the theme's primary (v1 behaviour). The theme wins, and
+ * the tint is dropped, only while the demo is active in this tab: the switcher is showing, or
+ * this tab followed a ?theme= link (or picked a theme) in sessionStorage.
  */
 export function applyRestaurantTint(brandColor?: string | null): void {
   const root = document.documentElement;
   root.setAttribute("data-restaurant", "");
-  // §10.2: while the demo is on the theme wins. A ?theme=<id> link (saved by the inline script in
-  // index.html) or an earlier pick counts as demo too, so per-theme links show the real theme colours.
-  if (!brandColor || isThemeDemoEnabled() || hasStoredDemoTheme()) {
+  if (!brandColor || isDemoActiveInTab()) {
     clearRestaurantTint();
     return;
   }
@@ -147,9 +155,14 @@ export function applyRestaurantTint(brandColor?: string | null): void {
   root.style.setProperty("--ring", brandColor);
 }
 
-function hasStoredDemoTheme(): boolean {
+/** Pill visible, or a theme was deep-linked / picked in this tab. */
+export function isDemoActiveInTab(): boolean {
+  return isThemeDemoEnabled() || hasSessionTheme();
+}
+
+function hasSessionTheme(): boolean {
   try {
-    return isThemeId(localStorage.getItem(THEME_STORAGE_KEY));
+    return isThemeId(sessionStorage.getItem(THEME_STORAGE_KEY));
   } catch {
     return false;
   }

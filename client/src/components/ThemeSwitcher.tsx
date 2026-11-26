@@ -36,8 +36,12 @@ export default function ThemeSwitcher() {
       <PopoverPrimitive.Trigger
         data-testid="theme-switcher"
         aria-label={`Theme demo: ${THEMES[active].name}. Change theme`}
-        className={`fixed right-4 z-50 flex h-11 items-center gap-2 rounded-full bg-black/80 px-4 font-[system-ui] text-sm text-white shadow-lg backdrop-blur focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none ${
-          staffTabs ? "bottom-20 lg:bottom-4" : "bottom-4"
+        className={`z-50 flex h-11 items-center gap-2 rounded-full bg-black/80 px-4 font-[system-ui] text-sm text-white shadow-lg backdrop-blur focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none ${
+          staffTabs
+            ? "fixed right-4 bottom-20 lg:bottom-4"
+            : // Absolute (not fixed) at the top-right, over the hero on landing, so it
+              // scrolls away with the page and never covers the CTA or form fields.
+              "absolute top-4 right-4"
         }`}
       >
         <PaletteIcon className="size-4" aria-hidden />
@@ -46,7 +50,7 @@ export default function ThemeSwitcher() {
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
-          side="top"
+          side={staffTabs ? "top" : "bottom"}
           align="end"
           sideOffset={8}
           data-testid="theme-switcher-panel"

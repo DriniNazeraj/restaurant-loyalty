@@ -15,6 +15,7 @@ const showThemeDemo = isThemeDemoEnabled();
 
 export default function App() {
   return (
+    <div className="relative min-h-svh">
     <Suspense fallback={<div className="min-h-svh" aria-busy="true" />}>
       <Switch>
         <Route path="/">
@@ -33,5 +34,6 @@ export default function App() {
         </Suspense>
       ) : null}
     </Suspense>
+    </div>
   );
 }

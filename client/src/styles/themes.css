@@ -22,7 +22,7 @@ html[data-theme="trattoria"] {
     --accent: #F3EBDC;
     --accent-foreground: #2A1A12;
     --border: #E6D9C3;
-    --input: #E6D9C3;
+    --input: #9C8A76;
     --ring: #A4261C;
     --ticket: #3E6B2F;
     --ticket-foreground: #FFFFFF;
@@ -63,13 +63,13 @@ html[data-theme="minimal"] {
     --accent: #F4F4F5;
     --accent-foreground: #0A0A0A;
     --border: #E4E4E7;
-    --input: #E4E4E7;
+    --input: #8A8A93;
     --ring: #1D4ED8;
     --ticket: #1D4ED8;
     --ticket-foreground: #FFFFFF;
     --destructive: #B42318;
     --destructive-foreground: #FFFFFF;
-    --success: #15803D;
+    --success: #146C36;
     --success-foreground: #FFFFFF;
     --warning: #B45309;
     --font-heading: "Manrope", ui-sans-serif, system-ui, sans-serif;
@@ -105,7 +105,7 @@ html[data-theme="luxe"] {
     --accent: #24211C;
     --accent-foreground: #F3EDE2;
     --border: #2E2A24;
-    --input: #2E2A24;
+    --input: #6E6656;
     --ring: #C9A45C;
     --ticket: #C9A45C;
     --ticket-foreground: #0E0D0B;
@@ -146,13 +146,13 @@ html[data-theme="cafe"] {
     --accent: #FDF2D0;
     --accent-foreground: #2B2118;
     --border: #F1E2B8;
-    --input: #F1E2B8;
+    --input: #A08A5C;
     --ring: #C2410C;
     --ticket: #0F766E;
     --ticket-foreground: #FFFFFF;
     --destructive: #B42318;
     --destructive-foreground: #FFFFFF;
-    --success: #15803D;
+    --success: #146C36;
     --success-foreground: #FFFFFF;
     --warning: #B45309;
     --font-heading: "Fredoka", ui-sans-serif, system-ui, sans-serif;
@@ -187,7 +187,7 @@ html[data-theme="rustic"] {
     --accent: #E9DFCC;
     --accent-foreground: #2E2A22;
     --border: #D6C7AA;
-    --input: #D6C7AA;
+    --input: #8C7A5C;
     --ring: #4A5D3A;
     --ticket: #9C3D1F;
     --ticket-foreground: #FFFFFF;
@@ -195,7 +195,7 @@ html[data-theme="rustic"] {
     --destructive-foreground: #FFFFFF;
     --success: #2F6B3A;
     --success-foreground: #FFFFFF;
-    --warning: #B45309;
+    --warning: #92400E;
     --font-heading: "Bitter", ui-serif, Georgia, serif;
     --font-body: "Karla", ui-sans-serif, system-ui, sans-serif;
     --radius: 0.5rem;
@@ -246,6 +246,7 @@ html[data-theme="rustic"] {
 .theme-h1 {
     font-size: var(--h1-size-sm);
     line-height: 1.15;
+    text-wrap: balance;
 }
 @media (min-width: 400px) {
     .theme-h1 {
@@ -336,9 +337,14 @@ html[data-theme="rustic"] :is(.theme-card, [data-slot="card"]) {
     outline-offset: -1px;
 }
 
-/* Hero (§10.1): text on the photo always sits on >= black/55. */
-/* §10.1 asks for from-black/80 via-black/55 to-black/25, but text (header, eyebrow) sits in the top half,
-   and the overlay rule says >= black/55 wherever text sits. So it holds at /55 from the middle up. */
+/* Hero (§10.7): from-black/85 via-black/70, held at /70 through the top so every line of
+   white text (wordmark included) reaches >= 7.0:1 on the brightest pixel. The example
+   to-black/30 is not used under text; same recipe in every theme; no text-shadow. */
 .hero-overlay {
-    background: linear-gradient(to top, rgb(0 0 0 / 0.8), rgb(0 0 0 / 0.55) 50%);
+    background: linear-gradient(to top, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0.70) 50%, rgb(0 0 0 / 0.70));
+}
+
+/* Cafe primary (#C2410C) on brand-soft is ~4.4:1. Darken only the text utility; CTA fill stays. */
+html[data-theme="cafe"] :is(.text-brand, .text-primary) {
+    color: #8B3008;
 }
