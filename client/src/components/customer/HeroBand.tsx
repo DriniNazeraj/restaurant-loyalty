@@ -28,7 +28,7 @@ export function HeroBand({ restaurantName, children }: { restaurantName: string;
       />
       <div aria-hidden className="hero-overlay absolute inset-0" />
       <header className="relative z-10 flex h-12 items-center justify-center px-5">
-        <p className="font-heading text-lg font-bold text-white">{restaurantName}</p>
+        <p className="font-heading text-lg font-bold text-white" data-testid="hero-wordmark">{restaurantName}</p>
       </header>
       <div className="hero-text-scrim absolute inset-x-0 bottom-0 z-10 min-h-[11.25rem] sm:min-h-[13.5rem]">
         <div className="mx-auto w-full max-w-md px-5 pb-10 text-white">{children}</div>

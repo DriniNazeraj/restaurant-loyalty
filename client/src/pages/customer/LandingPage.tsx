@@ -197,7 +197,7 @@ export default function LandingPage() {
       gap="gap-3"
       hero={
         <>
-          <p className="min-h-5 text-sm font-semibold text-white">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
+          <p className="min-h-5 text-sm font-semibold text-white" data-testid="hero-eyebrow">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
           <OfferHeadline rewardTitle={rewardTitle} />
           <p className="mt-1 text-white">{PH.offerSub}</p>
         </>

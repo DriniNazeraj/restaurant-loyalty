@@ -35,18 +35,19 @@ export default function ThemeSwitcher() {
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger
         data-testid="theme-switcher"
-        aria-label={`Theme demo: ${THEMES[active].name}. Change theme`}
-        className={`z-50 flex h-11 items-center gap-2 rounded-full bg-black/80 px-4 font-[system-ui] text-sm text-white shadow-lg backdrop-blur focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none ${
+        aria-label="Theme demo"
+        className={`z-50 flex size-11 items-center justify-center rounded-full bg-black/80 font-[system-ui] text-sm text-white shadow-lg backdrop-blur sm:h-11 sm:w-auto sm:justify-start sm:gap-2 sm:px-4 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:outline-none ${
           staffTabs
             ? "fixed right-4 bottom-20 lg:bottom-4"
             : // Absolute (not fixed) at the top-right, over the hero on landing, so it
               // scrolls away with the page and never covers the CTA or form fields.
+              // Below sm the pill is icon-only (44×44) so it clears the centered wordmark.
               "absolute top-4 right-4"
         }`}
       >
         <PaletteIcon className="size-4" aria-hidden />
-        <span>{THEMES[active].name}</span>
-        <span className="text-[10px] tracking-wider opacity-70">DEMO</span>
+        <span className="hidden sm:inline">{THEMES[active].name}</span>
+        <span className="hidden text-[10px] tracking-wider opacity-70 sm:inline">DEMO</span>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
