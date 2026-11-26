@@ -56,9 +56,10 @@ const resolver: Resolver<Values> = (raw) => {
   else if (values.phone.replace(/\D/g, "").length < 6) fail("phone", "That phone number looks too short");
   else if (values.phone.length > 32) fail("phone", "That phone number looks too long");
 
-  if (!values.email) fail("email", "Enter your email");
-  else if (values.email.length > 254) fail("email", "That email looks too long");
-  else if (!EMAIL_RE.test(values.email)) fail("email", "Enter a valid email");
+  if (values.email) {
+    if (values.email.length > 254) fail("email", "That email looks too long");
+    else if (!EMAIL_RE.test(values.email)) fail("email", "Enter a valid email");
+  }
 
   if (!!values.birthDay !== !!values.birthMonth) fail("birthDay", "Pick day and month, or neither");
   else if (values.birthDay && Number(values.birthDay) > DAYS_IN_MONTH[Number(values.birthMonth) - 1]) {
@@ -124,10 +125,11 @@ export default function LandingPage() {
   async function onSubmit(values: Values) {
     setSubmitError(null);
     try {
+      const email = values.email.trim();
       const result = await api.signup(slug, {
         name: values.name.trim(),
         phone: buildPhone(values.countryCode, values.phone),
-        email: values.email.trim(),
+        ...(email ? { email } : {}),
         birthday: values.birthDay && values.birthMonth ? { day: Number(values.birthDay), month: Number(values.birthMonth) } : null,
         marketingConsent: values.marketingConsent,
         deviceToken: readDeviceToken(slug),
@@ -264,7 +266,7 @@ export default function LandingPage() {
 
                 <TextField
                   id="email"
-                  label="Email"
+                  label="Email (optional)"
                   error={errors.email?.message}
                   inputProps={{
                     ...form.register("email"),

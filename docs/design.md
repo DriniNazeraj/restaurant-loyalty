@@ -82,7 +82,7 @@ From top to bottom on one scroll, with the form starting above the fold on a 390
    |---|---|---|
    | Name | Input `autocomplete="given-name"` | required, 1–60 |
    | Phone | country Select (default 🇦🇱 +355) + Input `type="tel" inputmode="tel" autocomplete="tel"` | required, valid E.164; this is the one-reward-per-person key |
-   | Email | Input `type="email" autocomplete="email"` | required, valid email |
+   | Email | Input `type="email" autocomplete="email"` | optional; valid email only when filled |
    | Birthday (optional) | two Selects, **Day** and **Month**, with no year | helper "So we can treat you on your birthday" |
    | Marketing consent | Checkbox, **unticked by default**, 24px box inside a `min-h-11` (44px) row; the whole row incl. label text is the `<label>`, tappable | label: "Send me offers from [PH] Trattoria by message or email. I can stop anytime." |
    - Under the CTA, in `text-xs` `--ink-muted`: "Your free appetizer doesn't depend on the box above. [Privacy notice] [PH]". The reward never requires consent, and the UI must make that obvious.
