@@ -1,11 +1,11 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { getStaffToken } from "@/lib/auth";
+import type { ReactNode } from "react";
+import { useStaffSession } from "@/lib/auth";
+import { Navigate } from "@/lib/router";
+import { usePathname } from "@/lib/router-hooks";
 
-export function RequireAuth() {
-  const location = useLocation();
-  const token = getStaffToken();
-  if (!token) {
-    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
-  }
-  return <Outlet />;
+export function RequireAuth({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const session = useStaffSession();
+  if (!session) return <Navigate to="/admin/login" state={{ from: pathname + window.location.search }} />;
+  return <>{children}</>;
 }

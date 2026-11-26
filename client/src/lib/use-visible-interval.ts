@@ -8,6 +8,7 @@ export function useVisibleInterval(
   callback: () => void,
   ms: number,
   enabled = true,
+  immediate = false,
 ): void {
   const callbackRef = useRef(callback);
 
@@ -24,11 +25,12 @@ export function useVisibleInterval(
       }
     };
 
+    if (immediate) tick();
     const id = window.setInterval(tick, ms);
     document.addEventListener("visibilitychange", tick);
     return () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [enabled, ms]);
+  }, [enabled, ms, immediate]);
 }

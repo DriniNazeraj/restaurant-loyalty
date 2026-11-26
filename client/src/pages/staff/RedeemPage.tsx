@@ -1,98 +1,136 @@
-import { useRef, useState } from "react";
-import { CheckCircle2Icon, Loader2Icon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2Icon, PhoneIcon, SearchIcon } from "lucide-react";
+import { PageHeader } from "@/components/staff/PageHeader";
+import { RewardResultCard } from "@/components/staff/RewardResultCard";
+import { resultFromReward, type RedeemResult } from "@/lib/redeem-result";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { ApiError, api, type RewardLookupResponse } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
+import type { ContactWithReward } from "@/lib/api-types";
 import { getStaffToken } from "@/lib/auth";
 import {
   AMBIGUOUS_CODE_CHARS,
+  REWARD_CODE_ALPHABET,
   REWARD_CODE_LENGTH,
   isCompleteRewardCode,
-  isRewardCodeChar,
   normalizeRewardCode,
+  stripCodeWhitespace,
 } from "@/lib/reward-code";
 
-type RedeemResult =
-  | { kind: "valid"; data: RewardLookupResponse }
-  | { kind: "used"; data: RewardLookupResponse }
-  | { kind: "not_found" }
-  | { kind: "error"; message: string };
+const DONE_RESET_MS = 6000;
+
+function errorResult(error: unknown, fallback: string): RedeemResult {
+  // 404 covers unknown codes AND other restaurants' codes: same copy either way.
+  if (error instanceof ApiError && error.code === "NOT_FOUND") return { kind: "not_found" };
+  if (error instanceof ApiError && error.code === "RATE_LIMITED") {
+    return { kind: "error", message: "Too many checks. Wait a minute and try again." };
+  }
+  if (error instanceof ApiError && error.code === "NETWORK_ERROR") return { kind: "error", message: error.message };
+  return { kind: "error", message: error instanceof ApiError ? error.message : fallback };
+}
 
 export default function RedeemPage() {
   const [code, setCode] = useState("");
   const [hint, setHint] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<RedeemResult | null>(null);
-  const submittedRef = useRef("");
+  const [showPhone, setShowPhone] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [phoneMatches, setPhoneMatches] = useState<ContactWithReward[] | null>(null);
+  const lastChecked = useRef("");
+  const otpRef = useRef<HTMLInputElement>(null);
 
-  async function lookup(nextCode: string) {
+  useEffect(() => {
+    if (result?.kind !== "done") return;
+    const id = window.setTimeout(reset, DONE_RESET_MS);
+    return () => window.clearTimeout(id);
+  }, [result]);
+
+  async function check(nextCode: string) {
     const normalized = normalizeRewardCode(nextCode);
-    if (!isCompleteRewardCode(normalized) || submittedRef.current === normalized) return;
     const token = getStaffToken();
-    if (!token) return;
-    submittedRef.current = normalized;
+    if (!token || !isCompleteRewardCode(normalized)) return;
+    lastChecked.current = normalized;
     setPending(true);
-    setHint(null);
+    setPhoneMatches(null);
     try {
       const data = await api.getReward(token, normalized);
-      setResult({ kind: data.reward.redeemedAt ? "used" : "valid", data });
+      setResult(resultFromReward(data.reward, data.contact.name));
     } catch (error) {
-      // Cross-restaurant codes also return 404; show the same copy (DESIGN.md §8b).
-      if (error instanceof ApiError && error.code === "NOT_FOUND") {
-        setResult({ kind: "not_found" });
-      } else if (error instanceof ApiError && error.code === "ALREADY_REDEEMED") {
-        setResult({ kind: "used", data: { reward: { id: "", code: normalized, title: "", redeemedAt: new Date().toISOString() }, contact: { id: "", name: "a waiter", phoneE164: "", email: "" } } });
-      } else {
-        setResult({
-          kind: "error",
-          message: error instanceof ApiError ? error.message : "Couldn't check that code.",
-        });
-      }
+      setResult(errorResult(error, "Couldn't check that code."));
+      if (error instanceof ApiError && error.code === "NOT_FOUND") otpRef.current?.select();
     } finally {
       setPending(false);
     }
   }
 
   async function markUsed() {
-    if (!result || result.kind !== "valid") return;
+    if (result?.kind !== "valid") return;
     const token = getStaffToken();
     if (!token) return;
+    const { reward, name } = result;
     setPending(true);
     try {
-      const data = await api.redeemReward(token, result.data.reward.code);
-      setResult({ kind: "used", data: { ...data, reward: { ...data.reward, redeemedAt: data.reward.redeemedAt ?? new Date().toISOString() } } });
+      const data = await api.redeemReward(token, reward.code);
+      setResult({ kind: "done", reward: data.reward, name: data.contact.name });
     } catch (error) {
-      if (error instanceof ApiError && error.code === "ALREADY_REDEEMED") {
-        setResult({ kind: "used", data: result.data });
-      } else if (error instanceof ApiError && error.code === "NOT_FOUND") {
-        setResult({ kind: "not_found" });
+      if (error instanceof ApiError && (error.code === "ALREADY_REDEEMED" || error.code === "REWARD_EXPIRED")) {
+        // Someone else got there first (or it just expired): show the fresh server state.
+        try {
+          const fresh = await api.getReward(token, reward.code);
+          setResult(resultFromReward(fresh.reward, fresh.contact.name));
+        } catch {
+          setResult(error.code === "REWARD_EXPIRED" ? { kind: "expired", reward, name } : { kind: "used", reward, name });
+        }
       } else {
-        setResult({
-          kind: "error",
-          message: error instanceof ApiError ? error.message : "Couldn't mark this as used.",
-        });
+        setResult(errorResult(error, "Couldn't mark this as used."));
       }
     } finally {
       setPending(false);
     }
   }
 
-  function onChange(raw: string) {
-    const normalized = normalizeRewardCode(raw);
-    const last = normalized.slice(-1);
-    if (last && AMBIGUOUS_CODE_CHARS.has(last)) {
-      setHint("That character isn't used in codes");
+  async function findByPhone(event: React.FormEvent) {
+    event.preventDefault();
+    const token = getStaffToken();
+    const q = phone.trim();
+    if (!token || q.replace(/\D/g, "").length < 6) {
+      setResult({ kind: "error", message: "Type the guest's full phone number." });
       return;
     }
-    if (last && !isRewardCodeChar(last)) {
-      setHint("That character isn't used in codes");
-      return;
+    setPending(true);
+    setResult(null);
+    setPhoneMatches(null);
+    try {
+      const data = await api.listContacts(token, { q, limit: 5 });
+      const digits = q.replace(/\D/g, "").replace(/^0+/, "");
+      const matches = data.contacts.filter((c) => c.phoneE164.replace(/\D/g, "").endsWith(digits.slice(-8)));
+      if (matches.length === 0) setResult({ kind: "not_found" });
+      else if (matches.length === 1) setResult(resultFromReward(matches[0].reward, matches[0].name));
+      else setPhoneMatches(matches);
+    } catch (error) {
+      setResult(errorResult(error, "Couldn't search contacts."));
+    } finally {
+      setPending(false);
     }
-    setHint(null);
-    setCode(normalized);
-    submittedRef.current = "";
-    if (normalized.length === REWARD_CODE_LENGTH) {
-      void lookup(normalized);
+  }
+
+  function onCodeChange(raw: string) {
+    const upper = stripCodeWhitespace(raw);
+    const bad = [...upper].find((ch) => !REWARD_CODE_ALPHABET.includes(ch));
+    if (bad) {
+      setHint(AMBIGUOUS_CODE_CHARS.has(bad) ? "That character isn't used in codes" : "Codes only use letters A–Z and 2–9");
+    } else {
+      setHint(null);
+    }
+    const cleaned = [...upper].filter((ch) => REWARD_CODE_ALPHABET.includes(ch)).join("").slice(0, REWARD_CODE_LENGTH);
+    setCode(cleaned);
+    if (cleaned.length < REWARD_CODE_LENGTH) {
+      lastChecked.current = "";
+      if (result && result.kind !== "done") setResult(null);
+    } else if (cleaned !== lastChecked.current) {
+      void check(cleaned);
     }
   }
 
@@ -100,22 +138,28 @@ export default function RedeemPage() {
     setCode("");
     setResult(null);
     setHint(null);
-    submittedRef.current = "";
+    setPhoneMatches(null);
+    lastChecked.current = "";
+    otpRef.current?.focus();
   }
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold text-ink">Redeem</h1>
-      <p className="mt-1 text-ink-muted">Type the 6-character code from the guest&apos;s screen.</p>
+      <PageHeader title="Redeem" description="Type the 6-character code from the guest's screen." />
 
-      <div className="mt-8 max-w-md">
+      <div className="mt-6 max-w-md">
         <InputOTP
+          ref={otpRef}
           maxLength={REWARD_CODE_LENGTH}
           value={code}
-          onChange={onChange}
+          onChange={onCodeChange}
+          pasteTransformer={stripCodeWhitespace}
           inputMode="text"
-          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          autoComplete="off"
           autoFocus
+          aria-label="Reward code"
+          data-testid="redeem-code-input"
           containerClassName="justify-start"
         >
           <InputOTPGroup className="gap-2">
@@ -123,64 +167,78 @@ export default function RedeemPage() {
               <InputOTPSlot
                 key={index}
                 index={index}
-                className="h-14 w-12 rounded-xl border border-input font-mono text-[28px] first:rounded-xl last:rounded-xl"
+                className="h-14 w-12 rounded-xl border border-input bg-card font-mono text-[28px] font-bold first:rounded-xl last:rounded-xl"
               />
             ))}
           </InputOTPGroup>
         </InputOTP>
-        {hint ? <p className="mt-3 text-sm text-danger">{hint}</p> : null}
-        <Button
-          type="button"
-          className="mt-4 h-12 w-full rounded-xl sm:w-auto"
-          disabled={pending || !isCompleteRewardCode(code)}
-          onClick={() => void lookup(code)}
-        >
-          {pending ? <Loader2Icon className="size-4 animate-spin" /> : null}
-          Check code
-        </Button>
+        <p className="mt-2 min-h-5 text-sm text-danger" aria-live="polite">
+          {hint}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 rounded-xl"
+            disabled={pending || code.length !== REWARD_CODE_LENGTH}
+            onClick={() => void check(code)}
+          >
+            {pending ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : <SearchIcon className="size-4" aria-hidden />}
+            Check code
+          </Button>
+          <button
+            type="button"
+            className="min-h-11 text-sm font-medium text-ink underline underline-offset-4"
+            onClick={() => setShowPhone((v) => !v)}
+            aria-expanded={showPhone}
+          >
+            Find by phone
+          </button>
+        </div>
+
+        {showPhone ? (
+          <form className="mt-3 flex gap-2" onSubmit={(e) => void findByPhone(e)}>
+            <div className="relative flex-1">
+              <PhoneIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" aria-hidden />
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="069 123 4567"
+                aria-label="Guest phone number"
+                data-testid="redeem-phone-input"
+                className="h-12 rounded-xl pl-9 text-base"
+              />
+            </div>
+            <Button type="submit" className="h-12 rounded-xl" disabled={pending}>
+              Find
+            </Button>
+          </form>
+        ) : null}
       </div>
 
       <div className="mt-6 max-w-md">
-        {result?.kind === "valid" ? (
-          <div className="rounded-2xl border border-line border-l-4 border-l-success bg-card p-5">
-            <p className="flex items-center gap-2 font-medium text-success">
-              <CheckCircle2Icon className="size-5" />
-              Valid · {result.data.contact.name}
-            </p>
-            <p className="mt-1 text-sm text-ink-muted">Claimed on this visit</p>
-            <Button className="mt-4 h-12 w-full rounded-xl" onClick={() => void markUsed()} disabled={pending}>
-              Mark as used
-            </Button>
-          </div>
+        {phoneMatches ? (
+          <ul className="flex flex-col gap-2">
+            {phoneMatches.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className="flex min-h-12 w-full items-center justify-between rounded-xl border border-border bg-card px-4 text-left"
+                  onClick={() => {
+                    setPhoneMatches(null);
+                    setResult(resultFromReward(c.reward, c.name));
+                  }}
+                >
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-sm text-ink-muted">{c.phoneE164}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         ) : null}
-        {result?.kind === "used" ? (
-          <div className="rounded-2xl border border-line border-l-4 border-l-warning bg-card p-5">
-            <p className="flex items-center gap-2 font-medium text-warning">
-              <TriangleAlertIcon className="size-5" />
-              Already used
-              {result.data.reward.redeemedAt
-                ? ` ${new Date(result.data.reward.redeemedAt).toLocaleString("en-GB")}`
-                : ""}
-              {result.data.contact.name ? ` by ${result.data.contact.name}` : ""}
-            </p>
-            <Button variant="outline" className="mt-4 h-12 rounded-xl" onClick={reset}>
-              Redeem another
-            </Button>
-          </div>
-        ) : null}
-        {result?.kind === "not_found" ? (
-          <div className="rounded-2xl border border-line border-l-4 border-l-danger bg-card p-5">
-            <p className="flex items-center gap-2 font-medium text-danger">
-              <XCircleIcon className="size-5" />
-              No reward with that code. Check the letters with the guest.
-            </p>
-          </div>
-        ) : null}
-        {result?.kind === "error" ? (
-          <div className="rounded-2xl border border-line border-l-4 border-l-danger bg-card p-5 text-danger">
-            {result.message}
-          </div>
-        ) : null}
+        {result ? <RewardResultCard result={result} pending={pending} onRedeem={() => void markUsed()} onReset={reset} /> : null}
       </div>
     </div>
   );

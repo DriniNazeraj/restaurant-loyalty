@@ -3,8 +3,14 @@ export const REWARD_CODE_LENGTH = 6;
 export const REWARD_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const AMBIGUOUS_CODE_CHARS = new Set(["0", "O", "1", "I"]);
 
+/** Uppercase and drop all whitespace/separators: waiters type "tsj vjs", guests paste "TSJ-VJS". */
 export function normalizeRewardCode(raw: string): string {
   return raw.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+}
+
+/** Uppercase and drop whitespace only, keeping other characters so we can hint about them. */
+export function stripCodeWhitespace(raw: string): string {
+  return raw.toUpperCase().replaceAll(/[\s\u00A0\u200B-]/g, "");
 }
 
 export function isAmbiguousCodeChar(char: string): boolean {

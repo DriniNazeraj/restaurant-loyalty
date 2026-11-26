@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink } from "@/lib/router";
 import { STAFF_TABS } from "@/components/staff/staff-nav";
 
 export function BottomTabBar() {
@@ -13,7 +13,7 @@ export function BottomTabBar() {
           <NavLink
             key={tab.to}
             to={tab.to}
-            className={({ isActive }) =>
+            className={(isActive) =>
               `flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 text-xs ${
                 isActive ? "text-brand" : "text-ink-muted"
               }`

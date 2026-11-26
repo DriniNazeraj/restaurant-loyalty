@@ -1,447 +1,442 @@
-import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router-dom";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { Controller, useForm, type FieldErrors, type Resolver } from "react-hook-form";
+import { Link } from "@/lib/router";
+import { useNavigate, useParams } from "@/lib/router-hooks";
 import { AlertCircleIcon, Loader2Icon } from "lucide-react";
-import { z } from "zod";
-import "@/fonts/customer.ts";
+import { AlreadyClaimedCard } from "@/components/customer/AlreadyClaimedCard";
 import { ConsentRow } from "@/components/customer/ConsentRow";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CustomerLayout } from "@/components/customer/CustomerLayout";
 import { ApiError, api } from "@/lib/api";
-import { applyRestaurantTheme } from "@/lib/restaurant-theme";
+import type { PublicSignupMaskedResponse } from "@/lib/api-types";
 import { PH } from "@/lib/placeholders";
-import { saveRewardPayload } from "@/lib/storage";
+import { readDeviceToken, readTicket, saveTicket } from "@/lib/storage";
+import { usePublicRestaurant } from "@/lib/use-restaurant";
 
-const MONTHS = [
-  { value: "1", label: "January" },
-  { value: "2", label: "February" },
-  { value: "3", label: "March" },
-  { value: "4", label: "April" },
-  { value: "5", label: "May" },
-  { value: "6", label: "June" },
-  { value: "7", label: "July" },
-  { value: "8", label: "August" },
-  { value: "9", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-] as const;
-
-const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
-
-const landingSchema = z
-  .object({
-    name: z.string().trim().min(1, "Enter your name").max(60, "Name must be 60 characters or less"),
-    phone: z.string().trim().min(1, "Enter your phone number"),
-    email: z.email("Enter a valid email"),
-    birthDay: z.string(),
-    birthMonth: z.string(),
-    marketingConsent: z.boolean(),
-  })
-  .superRefine((value, ctx) => {
-    const hasDay = value.birthDay.length > 0;
-    const hasMonth = value.birthMonth.length > 0;
-    if (hasDay !== hasMonth) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Choose both a day and a month",
-        path: [hasDay ? "birthMonth" : "birthDay"],
-      });
-    }
-  });
-
-type LandingValues = z.infer<typeof landingSchema>;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 const COUNTRY_CODES = [
   { value: "+355", label: "🇦🇱 +355" },
-  { value: "+39", label: "🇮🇹 +39" },
-  { value: "+30", label: "🇬🇷 +30" },
   { value: "+383", label: "🇽🇰 +383" },
   { value: "+389", label: "🇲🇰 +389" },
+  { value: "+39", label: "🇮🇹 +39" },
+  { value: "+30", label: "🇬🇷 +30" },
+  { value: "+44", label: "🇬🇧 +44" },
+  { value: "+49", label: "🇩🇪 +49" },
   { value: "+1", label: "🇺🇸 +1" },
 ] as const;
 
-export default function LandingPage() {
-  const { slug = PH.restaurantSlug } = useParams();
-  const navigate = useNavigate();
-  const [countryCode, setCountryCode] = useState("+355");
-  const [restaurantName, setRestaurantName] = useState<string>(PH.restaurantName);
-  const [offerEnded, setOfferEnded] = useState(false);
-  const [submitError, setSubmitError] = useState<"network" | "rate" | "conflict" | string | null>(
-    null,
-  );
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-  const form = useForm<LandingValues>({
-    resolver: zodResolver(landingSchema),
+type Values = {
+  name: string;
+  countryCode: string;
+  phone: string;
+  email: string;
+  birthDay: string;
+  birthMonth: string;
+  marketingConsent: boolean;
+};
+
+/**
+ * Hand-written resolver instead of a schema library: keeps the public landing chunk
+ * under the DESIGN.md §8b JS budget. Returns trimmed values like the server expects.
+ */
+const resolver: Resolver<Values> = (raw) => {
+  const values: Values = { ...raw, name: raw.name.trim(), phone: raw.phone.trim(), email: raw.email.trim() };
+  const errors: FieldErrors<Values> = {};
+  const fail = (field: keyof Values, message: string) => {
+    errors[field] ??= { type: "validate", message };
+  };
+
+  if (!values.name) fail("name", "Enter your name");
+  else if (values.name.length > 60) fail("name", "Keep it under 60 characters");
+
+  if (!values.phone) fail("phone", "Enter your phone number");
+  else if (values.phone.replace(/\D/g, "").length < 6) fail("phone", "That phone number looks too short");
+  else if (values.phone.length > 32) fail("phone", "That phone number looks too long");
+
+  if (!values.email) fail("email", "Enter your email");
+  else if (values.email.length > 254) fail("email", "That email looks too long");
+  else if (!EMAIL_RE.test(values.email)) fail("email", "Enter a valid email");
+
+  if (!!values.birthDay !== !!values.birthMonth) fail("birthDay", "Pick both day and month, or leave both empty");
+  else if (values.birthDay && Number(values.birthDay) > DAYS_IN_MONTH[Number(values.birthMonth) - 1]) {
+    fail("birthDay", "That day doesn't exist in that month");
+  }
+
+  return Object.keys(errors).length ? { values: {}, errors } : { values, errors: {} };
+};
+
+type FieldName = keyof Values;
+const FIELD_ORDER: FieldName[] = ["name", "phone", "email", "birthDay", "marketingConsent"];
+
+/** Local formats (069…, 00355…, +355…) are sent as typed; the server normalises. */
+function buildPhone(countryCode: string, raw: string): string {
+  const typed = raw.trim();
+  if (typed.startsWith("+") || typed.startsWith("00")) return typed;
+  if (countryCode === "+355") return typed;
+  return `${countryCode}${typed.replace(/^0+/, "")}`;
+}
+
+/** Server validation `details.fields` keys → our form fields. */
+function mapServerField(key: string): FieldName | null {
+  if (key === "name" || key === "phone" || key === "email" || key === "marketingConsent") return key;
+  if (key.startsWith("birthday")) return "birthDay";
+  return null;
+}
+
+const GENERIC_SUBMIT_ERROR = "Something went wrong on our side. Please try again, or ask your waiter.";
+
+type SubmitError = { kind: "network" } | { kind: "rate" } | { kind: "other"; message: string };
+
+export default function LandingPage() {
+  const { slug = "" } = useParams<{ slug?: string }>();
+  const navigate = useNavigate();
+  const [restaurantState, retryRestaurant] = usePublicRestaurant(slug);
+  const [masked, setMasked] = useState<PublicSignupMaskedResponse | null>(null);
+  const [offerEnded, setOfferEnded] = useState(false);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const existingTicket = readTicket(slug);
+
+  const form = useForm<Values>({
+    resolver,
+    mode: "onBlur",
+    reValidateMode: "onChange",
+    shouldFocusError: true,
     defaultValues: {
       name: "",
+      countryCode: "+355",
       phone: "",
       email: "",
       birthDay: "",
       birthMonth: "",
       marketingConsent: false,
     },
-    mode: "onBlur",
   });
+  const { errors, isSubmitting } = form.formState;
 
-  useEffect(() => {
-    document.title = restaurantName;
-    let cancelled = false;
-    api
-      .getRestaurant(slug)
-      .then(({ restaurant }) => {
-        if (cancelled) return;
-        setRestaurantName(restaurant.name);
-        applyRestaurantTheme(restaurant.brandColor);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        applyRestaurantTheme();
-        if (error instanceof ApiError && error.code === "NOT_FOUND") {
-          setOfferEnded(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, restaurantName]);
+  const restaurant = restaurantState.kind === "ready" ? restaurantState.restaurant : null;
+  const restaurantName = restaurant?.name ?? PH.restaurantName;
 
-  async function onSubmit(values: LandingValues) {
+  async function onSubmit(values: Values) {
     setSubmitError(null);
-    const birthday =
-      values.birthDay && values.birthMonth
-        ? { month: Number(values.birthMonth), day: Number(values.birthDay) }
-        : null;
-    const phone = `${countryCode}${values.phone.replace(/^0+/, "").replaceAll(/\s+/g, "")}`;
-
     try {
       const result = await api.signup(slug, {
-        name: values.name,
-        phone,
-        email: values.email,
-        birthday,
+        name: values.name.trim(),
+        phone: buildPhone(values.countryCode, values.phone),
+        email: values.email.trim(),
+        birthday: values.birthDay && values.birthMonth ? { day: Number(values.birthDay), month: Number(values.birthMonth) } : null,
         marketingConsent: values.marketingConsent,
+        deviceToken: readDeviceToken(slug),
       });
-      const token = result.reward.id;
-      saveRewardPayload(slug, token, {
-        token,
+      if (result.alreadyClaimed) {
+        setMasked(result);
+        window.scrollTo({ top: 0 });
+        return;
+      }
+      saveTicket(slug, {
+        deviceToken: result.deviceToken,
         code: result.reward.code,
         title: result.reward.title,
-        name: result.contact.name,
+        firstName: result.firstName,
+        status: result.reward.status,
+        expiresAt: result.reward.expiresAt,
         redeemedAt: result.reward.redeemedAt,
-        isExisting: result.isExisting,
       });
-      // Preload the mono font only after a successful submit, then go to the ticket.
+      // The mono code font is only needed from here on; start fetching it now.
       void import("@/fonts/reward-mono.ts");
-      navigate(`/r/${slug}/reward/${token}`, {
+      navigate(`/r/${slug}/reward/${encodeURIComponent(result.deviceToken)}`, {
         state: { welcomeBack: result.isExisting },
       });
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.code === "RATE_LIMITED") {
-          setSubmitError("rate");
+      if (!(error instanceof ApiError)) return setSubmitError({ kind: "network" });
+      if (error.code === "NETWORK_ERROR") return setSubmitError({ kind: "network" });
+      if (error.code === "RATE_LIMITED") return setSubmitError({ kind: "rate" });
+      if (error.code === "OFFER_ENDED" || error.code === "NOT_FOUND") return setOfferEnded(true);
+      if (error.code === "VALIDATION_ERROR") {
+        let first: FieldName | null = null;
+        for (const [key, message] of Object.entries(error.fields)) {
+          const field = mapServerField(key);
+          if (!field) continue;
+          form.setError(field, { type: "server", message });
+          if (!first || FIELD_ORDER.indexOf(field) < FIELD_ORDER.indexOf(first)) first = field;
+        }
+        if (first) {
+          form.setFocus(first);
           return;
         }
-        if (error.code === "NETWORK_ERROR") {
-          setSubmitError("network");
-          return;
-        }
-        if (error.code === "CONTACT_CONFLICT") {
-          setSubmitError("conflict");
-          return;
-        }
-        if (error.fields) {
-          for (const [field, message] of Object.entries(error.fields)) {
-            if (field in values) {
-              form.setError(field as keyof LandingValues, { message });
-            }
-          }
-        }
-        setSubmitError(error.message);
-        return;
       }
-      setSubmitError("network");
+      // 413 payload too large, 5xx, malformed body, anything unexpected: generic copy, never raw server text.
+      setSubmitError({ kind: "other", message: GENERIC_SUBMIT_ERROR });
     }
   }
 
-  function focusFirstError(errors: typeof form.formState.errors) {
-    const order: (keyof LandingValues)[] = [
-      "name",
-      "phone",
-      "email",
-      "birthDay",
-      "birthMonth",
-      "marketingConsent",
-    ];
-    const first = order.find((key) => errors[key]);
-    if (first) document.getElementById(first)?.focus();
+  const submit = form.handleSubmit(onSubmit);
+
+  if (restaurantState.kind === "not_found") {
+    return (
+      <CustomerLayout restaurantName={PH.restaurantName}>
+        <div className="mt-8 rounded-2xl bg-surface p-6 shadow-sm">
+          <h1 className="font-heading text-2xl font-bold text-ink">We couldn't find this restaurant</h1>
+          <p className="mt-2 text-ink-muted">Check the QR code on your table, or ask your waiter.</p>
+        </div>
+      </CustomerLayout>
+    );
   }
 
+  const ended = offerEnded || restaurant?.offerActive === false;
+
   return (
-    <div className="customer-app min-h-svh font-sans">
-      <header className="flex h-14 items-center justify-center px-5">
-        <p className="font-heading text-lg font-bold text-ink">{restaurantName}</p>
-      </header>
-      <main className="mx-auto flex max-w-md flex-col gap-6 px-5 pb-12">
-        <section>
-          <p className="text-sm text-brand">{PH.eyebrow}</p>
-          <h1 className="mt-1 font-heading text-4xl font-bold leading-tight text-ink">
-            {PH.offerHeadline}
-          </h1>
-          <p className="mt-2 text-ink-muted">{PH.offerSub}</p>
-        </section>
+    <CustomerLayout restaurantName={restaurantName}>
+      {masked ? (
+        <AlreadyClaimedCard last2={masked.last2} status={masked.status} />
+      ) : (
+        <>
+          <section>
+            <p className="text-sm font-semibold text-brand">Welcome to {restaurantName}</p>
+            <h1 className="mt-1 font-heading text-4xl leading-tight font-bold text-ink">
+              {PH.offerHeadline}
+            </h1>
+            <p className="mt-2 text-ink-muted">{PH.offerSub}</p>
+          </section>
 
-        {offerEnded ? (
-          <div className="rounded-2xl bg-surface p-5 shadow-sm">
-            <p className="text-ink">{PH.offerEnded}</p>
-          </div>
-        ) : (
-          <form
-            className="rounded-2xl bg-surface p-5 shadow-sm"
-            onSubmit={form.handleSubmit(onSubmit, focusFirstError)}
-            noValidate
-          >
-            <FieldGroup className="gap-6">
-              <Controller
-                name="name"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="name">Name</FieldLabel>
-                    <Input
-                      {...field}
-                      id="name"
-                      autoComplete="given-name"
-                      aria-invalid={fieldState.invalid}
-                      aria-describedby={fieldState.error ? "name-error" : undefined}
-                      className="h-12 rounded-xl text-base"
+          {existingTicket && !ended ? (
+            <p className="rounded-xl bg-brand-soft px-4 py-3 text-sm text-ink">
+              You already have a reward on this phone.{" "}
+              <Link
+                className="font-semibold text-brand underline underline-offset-2"
+                to={`/r/${slug}/reward/${encodeURIComponent(existingTicket.deviceToken)}`}
+              >
+                Show my code
+              </Link>
+            </p>
+          ) : null}
+
+          {restaurantState.kind === "error" ? (
+            <InlineAlert message="Couldn't connect. Check your signal and try again." onRetry={retryRestaurant} />
+          ) : null}
+
+          {ended ? (
+            <div className="rounded-2xl bg-surface p-6 shadow-sm">
+              <p className="text-lg text-ink">This offer has ended. Thanks for visiting {restaurantName}.</p>
+            </div>
+          ) : (
+            <form className="rounded-2xl bg-surface p-5 shadow-sm" onSubmit={submit} noValidate>
+              <div className="flex flex-col gap-4">
+                <TextField
+                  id="name"
+                  label="Name"
+                  error={errors.name?.message}
+                  inputProps={{ ...form.register("name"), autoComplete: "given-name", "data-testid": "claim-name" }}
+                />
+
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="phone" className="text-sm font-semibold text-ink">
+                    Phone
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      aria-label="Country code"
+                      className="h-12 w-[6.75rem] shrink-0 rounded-xl border border-line bg-surface px-2 text-base text-ink"
+                      {...form.register("countryCode")}
+                    >
+                      {COUNTRY_CODES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      data-testid="claim-phone"
+                      aria-invalid={!!errors.phone}
+                      aria-describedby={errors.phone ? "phone-error" : "phone-help"}
+                      className={inputClass(!!errors.phone)}
+                      {...form.register("phone")}
                     />
-                    <div className="min-h-5">
-                      {fieldState.invalid ? (
-                        <FieldError id="name-error" errors={[fieldState.error]} className="flex items-center gap-1 text-danger">
-                          <AlertCircleIcon className="size-4" aria-hidden />
-                        </FieldError>
-                      ) : null}
-                    </div>
-                  </Field>
-                )}
-              />
+                  </div>
+                  <FieldMessage id="phone-error" error={errors.phone?.message} helpId="phone-help" help="One reward per phone number" />
+                </div>
 
-              <div className="grid gap-6">
-                <Controller
-                  name="phone"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="phone">Phone</FieldLabel>
-                      <div className="flex gap-2">
-                        <Select value={countryCode} onValueChange={setCountryCode}>
-                          <SelectTrigger
-                            aria-label="Country code"
-                            className="h-12 w-[7.5rem] shrink-0 rounded-xl text-base"
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COUNTRY_CODES.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          {...field}
-                          id="phone"
-                          type="tel"
-                          inputMode="tel"
-                          autoComplete="tel"
-                          aria-invalid={fieldState.invalid}
-                          aria-describedby={fieldState.error ? "phone-error" : undefined}
-                          className="h-12 rounded-xl text-base"
-                        />
-                      </div>
-                      <div className="min-h-5">
-                        {fieldState.invalid ? (
-                          <FieldError id="phone-error" errors={[fieldState.error]} className="text-danger" />
-                        ) : null}
-                      </div>
-                    </Field>
-                  )}
+                <TextField
+                  id="email"
+                  label="Email"
+                  error={errors.email?.message}
+                  inputProps={{
+                    ...form.register("email"),
+                    type: "email",
+                    inputMode: "email",
+                    autoComplete: "email",
+                    "data-testid": "claim-email",
+                  }}
                 />
-              </div>
 
-              <Controller
-                name="email"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="email">Email</FieldLabel>
-                    <Input
-                      {...field}
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      aria-invalid={fieldState.invalid}
-                      aria-describedby={fieldState.error ? "email-error" : undefined}
-                      className="h-12 rounded-xl text-base"
-                    />
-                    <div className="min-h-5">
-                      {fieldState.invalid ? (
-                        <FieldError id="email-error" errors={[fieldState.error]} className="text-danger" />
-                      ) : null}
-                    </div>
-                  </Field>
-                )}
-              />
+                <fieldset className="flex flex-col gap-1.5" data-testid="claim-birthday">
+                  <legend className="text-sm font-semibold text-ink">
+                    Birthday <span className="font-normal text-ink-muted">(optional)</span>
+                  </legend>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <select
+                      id="birthDay"
+                      aria-label="Birthday day"
+                      aria-invalid={!!errors.birthDay}
+                      aria-describedby={errors.birthDay ? "birthDay-error" : "birthday-help"}
+                      className={inputClass(!!errors.birthDay)}
+                      {...form.register("birthDay")}
+                    >
+                      <option value="">Day</option>
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <option key={i + 1} value={String(i + 1)}>
+                          {i + 1}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Birthday month"
+                      aria-invalid={!!errors.birthDay}
+                      className={inputClass(!!errors.birthDay)}
+                      {...form.register("birthMonth", { onChange: () => form.clearErrors("birthDay") })}
+                    >
+                      <option value="">Month</option>
+                      {MONTHS.map((m, i) => (
+                        <option key={m} value={String(i + 1)}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <FieldMessage
+                    id="birthDay-error"
+                    error={errors.birthDay?.message}
+                    helpId="birthday-help"
+                    help="So we can treat you on your birthday"
+                  />
+                </fieldset>
 
-              <div className="grid grid-cols-2 gap-3">
                 <Controller
-                  name="birthDay"
+                  name="marketingConsent"
                   control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="birthDay">Birthday day</FieldLabel>
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger
-                          id="birthDay"
-                          aria-invalid={fieldState.invalid}
-                          className="h-12 w-full rounded-xl text-base"
-                        >
-                          <SelectValue placeholder="Day" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAYS.map((day) => (
-                            <SelectItem key={day} value={day}>
-                              {day}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="min-h-5 text-sm text-ink-muted">
-                        {fieldState.invalid ? (
-                          <FieldError errors={[fieldState.error]} className="text-danger" />
-                        ) : (
-                          "So we can treat you on your birthday"
-                        )}
-                      </p>
-                    </Field>
-                  )}
-                />
-                <Controller
-                  name="birthMonth"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="birthMonth">Birthday month</FieldLabel>
-                      <Select
-                        value={field.value || undefined}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger
-                          id="birthMonth"
-                          aria-invalid={fieldState.invalid}
-                          className="h-12 w-full rounded-xl text-base"
-                        >
-                          <SelectValue placeholder="Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MONTHS.map((month) => (
-                            <SelectItem key={month.value} value={month.value}>
-                              {month.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="min-h-5">
-                        {fieldState.invalid ? (
-                          <FieldError errors={[fieldState.error]} className="text-danger" />
-                        ) : null}
-                      </div>
-                    </Field>
-                  )}
-                />
-              </div>
-
-              <Controller
-                name="marketingConsent"
-                control={form.control}
-                render={({ field }) => (
-                  <Field>
+                  render={({ field }) => (
                     <ConsentRow
                       id="marketingConsent"
-                      label={PH.consentLabel}
+                      testId="claim-consent"
+                      label={restaurant?.consentText ?? PH.consentLabel}
                       checked={field.value}
                       onCheckedChange={field.onChange}
                       describedBy="consent-note"
                     />
-                  </Field>
-                )}
-              />
+                  )}
+                />
 
-              {submitError ? (
-                <Alert variant="destructive">
-                  <AlertCircleIcon />
-                  <AlertTitle>Couldn&apos;t finish that</AlertTitle>
-                  <AlertDescription>
-                    {submitError === "network"
-                      ? "Couldn't connect. Check your signal and try again."
-                      : submitError === "rate"
-                        ? "Too many tries, wait a minute and try again."
-                        : submitError === "conflict"
-                          ? "That phone and email belong to different guests. Check the details and try again."
-                          : submitError}
-                    {submitError === "network" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-3"
-                        onClick={() => void form.handleSubmit(onSubmit, focusFirstError)()}
-                      >
-                        Try again
-                      </Button>
-                    ) : null}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
+                {submitError ? (
+                  <InlineAlert
+                    message={
+                      submitError.kind === "network"
+                        ? "Couldn't connect. Check your signal and try again."
+                        : submitError.kind === "rate"
+                          ? "Too many tries, wait a minute and try again."
+                          : submitError.message
+                    }
+                    onRetry={submitError.kind === "rate" ? undefined : () => void submit()}
+                  />
+                ) : null}
 
-              <Button
-                type="submit"
-                disabled={form.formState.isSubmitting}
-                className="h-14 w-full rounded-xl bg-brand text-lg font-semibold text-brand-fg hover:bg-brand/90"
-              >
-                {form.formState.isSubmitting ? (
-                  <>
-                    <Loader2Icon className="size-5 animate-spin" aria-hidden />
-                    Getting your code…
-                  </>
-                ) : (
-                  PH.cta
-                )}
-              </Button>
-              <p id="consent-note" className="text-xs text-ink-muted">
-                {PH.privacyNote}
-              </p>
-            </FieldGroup>
-          </form>
-        )}
-      </main>
-      <footer className="px-5 pb-8 text-center text-xs text-ink-muted">
-        Powered by {PH.productName}
-      </footer>
+                <button
+                  type="submit"
+                  data-testid="claim-submit"
+                  disabled={isSubmitting || restaurantState.kind === "loading"}
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand text-lg font-semibold text-brand-fg transition-colors hover:bg-brand/90 disabled:opacity-60"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2Icon className="size-5 animate-spin" aria-hidden />
+                      Getting your code…
+                    </>
+                  ) : (
+                    PH.cta
+                  )}
+                </button>
+                <p id="consent-note" className="text-xs text-ink-muted">
+                  Your free appetizer doesn't depend on the box above. Privacy notice [PH]
+                </p>
+              </div>
+            </form>
+          )}
+        </>
+      )}
+    </CustomerLayout>
+  );
+}
+
+function inputClass(invalid: boolean): string {
+  return `h-12 w-full min-w-0 rounded-xl border bg-surface px-3 text-base text-ink outline-none ${
+    invalid ? "border-danger" : "border-line"
+  }`;
+}
+
+type TextFieldProps = {
+  id: string;
+  label: string;
+  error?: string;
+  inputProps: React.InputHTMLAttributes<HTMLInputElement> & { "data-testid"?: string; ref?: React.Ref<HTMLInputElement> };
+};
+
+function TextField({ id, label, error, inputProps }: TextFieldProps) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-semibold text-ink">
+        {label}
+      </label>
+      <input
+        id={id}
+        aria-invalid={!!error}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className={inputClass(!!error)}
+        {...inputProps}
+      />
+      <FieldMessage id={`${id}-error`} error={error} />
+    </div>
+  );
+}
+
+/** Reserves `min-h-5` so errors don't shift the layout (DESIGN.md §7). */
+function FieldMessage({ id, error, help, helpId }: { id: string; error?: string; help?: string; helpId?: string }) {
+  return (
+    <div className="min-h-5 text-sm">
+      {error ? (
+        <p id={id} role="alert" className="flex items-center gap-1 text-danger">
+          <AlertCircleIcon className="size-4 shrink-0" aria-hidden />
+          {error}
+        </p>
+      ) : help ? (
+        <p id={helpId} className="text-ink-muted">
+          {help}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function InlineAlert({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+      <p className="flex items-start gap-2">
+        <AlertCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        {message}
+      </p>
+      {onRetry ? (
+        <button
+          type="button"
+          className="h-11 self-start rounded-xl border border-line bg-surface px-4 font-semibold text-ink"
+          onClick={onRetry}
+        >
+          Try again
+        </button>
+      ) : null}
     </div>
   );
 }

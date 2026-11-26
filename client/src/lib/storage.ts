@@ -1,41 +1,49 @@
-const rewardKey = (slug: string) => `loyalty.rewardToken:${slug}`;
-const rewardPayloadKey = (slug: string, token: string) =>
-  `loyalty.rewardPayload:${slug}:${token}`;
+/** Guest-side storage, scoped per restaurant slug (docs/api.md device token flow). */
+const deviceTokenKey = (slug: string) => `loyalty_device_token:${slug}`;
+const ticketKey = (slug: string) => `loyalty_ticket:${slug}`;
 
-export type CachedReward = {
-  token: string;
+export type CachedTicket = {
+  deviceToken: string;
   code: string;
   title: string;
-  name: string;
+  firstName: string;
+  status: "active" | "redeemed" | "expired";
+  expiresAt: string | null;
   redeemedAt: string | null;
-  isExisting: boolean;
 };
 
-export function saveRewardToken(slug: string, token: string): void {
-  localStorage.setItem(rewardKey(slug), token);
+function safeGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
-export function readRewardToken(slug: string): string | null {
-  return localStorage.getItem(rewardKey(slug));
+function safeSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private mode / storage full: the reward still shows for this visit.
+  }
 }
 
-export function saveRewardPayload(
-  slug: string,
-  token: string,
-  payload: CachedReward,
-): void {
-  saveRewardToken(slug, token);
-  localStorage.setItem(rewardPayloadKey(slug, token), JSON.stringify(payload));
+export function readDeviceToken(slug: string): string | null {
+  return safeGet(deviceTokenKey(slug));
 }
 
-export function readRewardPayload(
-  slug: string,
-  token: string,
-): CachedReward | null {
-  const raw = localStorage.getItem(rewardPayloadKey(slug, token));
+export function saveTicket(slug: string, ticket: CachedTicket): void {
+  safeSet(deviceTokenKey(slug), ticket.deviceToken);
+  safeSet(ticketKey(slug), JSON.stringify(ticket));
+}
+
+export function readTicket(slug: string, deviceToken?: string): CachedTicket | null {
+  const raw = safeGet(ticketKey(slug));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as CachedReward;
+    const ticket = JSON.parse(raw) as CachedTicket;
+    if (deviceToken && ticket.deviceToken !== deviceToken) return null;
+    return ticket;
   } catch {
     return null;
   }
