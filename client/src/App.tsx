@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { PH } from "@/lib/placeholders";
+import { isThemeDemoEnabled } from "@/lib/theme";
 import { Navigate, Route, Switch } from "@/lib/router";
 
 // Every route is its own chunk; /admin code never loads on the public landing.
@@ -8,6 +9,9 @@ const RewardPage = lazy(() => import("@/pages/customer/RewardPage"));
 const LoginPage = lazy(() => import("@/pages/staff/LoginPage"));
 const StaffApp = lazy(() => import("@/pages/staff/StaffApp"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
+// DEMO (DESIGN.md §10.4): own chunk, only fetched when the demo is on. Delete with ThemeSwitcher.tsx.
+const ThemeSwitcher = lazy(() => import("@/components/ThemeSwitcher"));
+const showThemeDemo = isThemeDemoEnabled();
 
 export default function App() {
   return (
@@ -23,6 +27,11 @@ export default function App() {
         <Route path="/admin/*" component={StaffApp} />
         <Route component={NotFoundPage} />
       </Switch>
+      {showThemeDemo ? (
+        <Suspense fallback={null}>
+          <ThemeSwitcher />
+        </Suspense>
+      ) : null}
     </Suspense>
   );
 }

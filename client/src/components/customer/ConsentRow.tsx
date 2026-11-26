@@ -15,7 +15,7 @@ type ConsentRowProps = {
  */
 export function ConsentRow({ id, label, checked, onCheckedChange, describedBy, testId }: ConsentRowProps) {
   return (
-    <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl py-2">
+    <label htmlFor={id} className="flex min-h-[82px] cursor-pointer items-start gap-3 rounded-xl py-2">
       <span className="relative mt-0.5 flex size-6 shrink-0">
         <input
           id={id}

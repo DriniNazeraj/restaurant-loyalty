@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" suppressHydrationWarning>
+<html lang="en" data-theme="trattoria">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -7,6 +7,22 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content="[PH] Scan the table card for your reward." />
     <title>[PH product name]</title>
+    <!--
+      Theme before first paint (DESIGN.md §10.4), so there is no flash.
+      DEMO: ?theme=<id> wins, then localStorage["rl-theme-demo"]. On removal, delete this
+      script and hard-set data-theme="<picked>" on <html> above.
+    -->
+    <script>
+      (function () {
+        var ids = ["trattoria", "minimal", "luxe", "cafe", "rustic"];
+        try {
+          var q = new URLSearchParams(location.search).get("theme");
+          var t = ids.indexOf(q) >= 0 ? q : localStorage.getItem("rl-theme-demo");
+          if (ids.indexOf(q) >= 0) localStorage.setItem("rl-theme-demo", q);
+          if (ids.indexOf(t) >= 0) document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

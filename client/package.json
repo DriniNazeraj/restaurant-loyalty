@@ -12,9 +12,16 @@
     "size:landing": "node scripts/measure-landing.mjs"
   },
   "dependencies": {
-    "@fontsource/bricolage-grotesque": "^5.3.0",
-    "@fontsource/inter": "^5.3.0",
+    "@fontsource/bitter": "^5.3.0",
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/dm-serif-display": "^5.3.0",
+    "@fontsource/fredoka": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/jost": "^5.3.0",
+    "@fontsource/karla": "^5.3.0",
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "@hookform/resolvers": "^7.0.9",
     "@tailwindcss/vite": "^4.3.5",
     "class-variance-authority": "^0.7.1",

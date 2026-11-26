@@ -89,7 +89,7 @@ function drawFace(ctx: CanvasRenderingContext2D, qr: QrModules, opts: CardOption
   ctx.fillRect(0, 0, w, bandH);
   if (opts.showWordmark) {
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = `700 ${14 * PT * k}px "Bricolage Grotesque", sans-serif`;
+    ctx.font = `700 ${14 * PT * k}px ${themeFont("--font-heading")}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(opts.restaurantName, w / 2, bandH / 2, w - 10 * mm);
@@ -101,7 +101,7 @@ function drawFace(ctx: CanvasRenderingContext2D, qr: QrModules, opts: CardOption
   if (!landscape) {
     ctx.textAlign = "center";
     ctx.fillStyle = INK;
-    ctx.font = `700 ${22 * PT * k}px "Bricolage Grotesque", sans-serif`;
+    ctx.font = `700 ${22 * PT * k}px ${themeFont("--font-heading")}`;
     const lineH = 26 * PT * k;
     let cy = bandH + pad + 20 * PT * k;
     for (const l of wrap(ctx, opts.headline, w - pad * 2).slice(0, 3)) {
@@ -116,7 +116,7 @@ function drawFace(ctx: CanvasRenderingContext2D, qr: QrModules, opts: CardOption
     ctx.fillStyle = INK;
     ctx.fillText(shortUrl(opts.url), w / 2, ty, w - pad * 2);
     ty += 7 * mm * k;
-    ctx.font = `400 ${10 * PT * k}px "Inter", sans-serif`;
+    ctx.font = `400 ${10 * PT * k}px ${themeFont("--font-body")}`;
     ctx.fillStyle = MUTED;
     ctx.fillText(opts.smallLine, w / 2, ty, w - pad * 2);
   } else {
@@ -127,14 +127,14 @@ function drawFace(ctx: CanvasRenderingContext2D, qr: QrModules, opts: CardOption
     const textW = qrX - pad * 2;
     ctx.textAlign = "left";
     ctx.fillStyle = INK;
-    ctx.font = `700 ${22 * PT}px "Bricolage Grotesque", sans-serif`;
+    ctx.font = `700 ${22 * PT}px ${themeFont("--font-heading")}`;
     let cy = bandH + pad + 22 * PT;
     for (const l of wrap(ctx, opts.headline, textW).slice(0, 3)) {
       ctx.fillText(l, pad, cy);
       cy += 26 * PT;
     }
     cy += 4 * mm;
-    ctx.font = `400 ${10 * PT}px "Inter", sans-serif`;
+    ctx.font = `400 ${10 * PT}px ${themeFont("--font-body")}`;
     ctx.fillStyle = MUTED;
     ctx.fillText(opts.smallLine, pad, cy, textW);
     cy += 8 * mm;
@@ -143,6 +143,11 @@ function drawFace(ctx: CanvasRenderingContext2D, qr: QrModules, opts: CardOption
     ctx.fillText(shortUrl(opts.url), pad, cy, textW);
   }
   ctx.restore();
+}
+
+/** The active theme's font stacks (DESIGN.md §10.2), so the printed card matches the app. */
+function themeFont(variable: "--font-heading" | "--font-body"): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || "sans-serif";
 }
 
 export async function renderCard(opts: CardOptions): Promise<HTMLCanvasElement> {

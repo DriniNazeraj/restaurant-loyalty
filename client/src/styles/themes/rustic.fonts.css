@@ -1,0 +1,5 @@
+/* Rustic bistro: Bitter 600/700 (slab headings), Karla 400/600 (body). latin subset only. */
+@import "@fontsource/bitter/latin-600.css";
+@import "@fontsource/bitter/latin-700.css";
+@import "@fontsource/karla/latin-400.css";
+@import "@fontsource/karla/latin-600.css";

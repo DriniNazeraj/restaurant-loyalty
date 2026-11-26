@@ -1,0 +1,4 @@
+/* Trattoria: DM Serif Display 400 (headings), DM Sans 400/600 (body). latin subset only. */
+@import "@fontsource/dm-serif-display/latin-400.css";
+@import "@fontsource/dm-sans/latin-400.css";
+@import "@fontsource/dm-sans/latin-600.css";
