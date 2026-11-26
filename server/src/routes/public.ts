@@ -37,30 +37,40 @@ function tokensMatch(providedToken: string | null | undefined, storedHash: strin
   return timingSafeEqual(providedBuf, storedBuf);
 }
 
-function buildExistingResponse(opts: {
-  contact: ContactRow;
-  reward: RewardWithHashRow;
+async function handleExistingClaim(opts: {
+  pool: Pool;
+  existing: { contact: ContactRow; reward: RewardWithHashRow };
   suppliedToken: string | null | undefined;
+  marketingConsent: boolean;
+  consentText: string;
   now: Date;
-}): PublicSignupResponse {
-  const { contact, reward, suppliedToken, now } = opts;
-  if (suppliedToken && tokensMatch(suppliedToken, reward.device_token_hash)) {
+}): Promise<PublicSignupResponse> {
+  const { pool, existing, suppliedToken, marketingConsent, consentText, now } = opts;
+  if (suppliedToken && tokensMatch(suppliedToken, existing.reward.device_token_hash)) {
+    const contact = await maybeUpgradeConsent(
+      pool,
+      existing.contact,
+      marketingConsent,
+      consentText,
+      now
+    );
     return {
       isExisting: true,
       alreadyClaimed: false,
       firstName: firstNameOf(contact.name),
       deviceToken: suppliedToken,
-      reward: mapRewardSummary(reward, now),
+      reward: mapRewardSummary(existing.reward, now),
     };
   }
 
-  const last2 = reward.code.slice(-2);
+  // No matching deviceToken -> change NOTHING on contact (do not upgrade consent)
+  const last2 = existing.reward.code.slice(-2);
   return {
     isExisting: true,
     alreadyClaimed: true,
     maskedCode: `••••${last2}`,
     last2,
-    status: computeRewardStatus(reward.redeemed_at, reward.expires_at, now),
+    status: computeRewardStatus(existing.reward.redeemed_at, existing.reward.expires_at, now),
     message: 'Already claimed — ask your waiter',
   };
 }
@@ -126,17 +136,12 @@ export function createPublicRouter(pool: Pool, limiters: RateLimiters, clock: ()
 
       const existingLookup = await findExistingContactWithReward(pool, restaurant.id, phoneE164, email);
       if (existingLookup) {
-        const contact = await maybeUpgradeConsent(
+        const body = await handleExistingClaim({
           pool,
-          existingLookup.contact,
-          marketingConsent,
-          restaurant.consent_text,
-          now
-        );
-        const body = buildExistingResponse({
-          contact,
-          reward: existingLookup.reward,
+          existing: existingLookup,
           suppliedToken: suppliedDeviceToken,
+          marketingConsent,
+          consentText: restaurant.consent_text,
           now,
         });
         res.status(200).json(body);
@@ -180,17 +185,12 @@ export function createPublicRouter(pool: Pool, limiters: RateLimiters, clock: ()
             await client.query('ROLLBACK');
             const raceExisting = await findExistingContactWithReward(pool, restaurant.id, phoneE164, email);
             if (raceExisting) {
-              const contact = await maybeUpgradeConsent(
+              const body = await handleExistingClaim({
                 pool,
-                raceExisting.contact,
-                marketingConsent,
-                restaurant.consent_text,
-                now
-              );
-              const body = buildExistingResponse({
-                contact,
-                reward: raceExisting.reward,
+                existing: raceExisting,
                 suppliedToken: suppliedDeviceToken,
+                marketingConsent,
+                consentText: restaurant.consent_text,
                 now,
               });
               res.status(200).json(body);

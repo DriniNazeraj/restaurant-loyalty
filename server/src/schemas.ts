@@ -262,8 +262,7 @@ export type ListContactsResponse = z.infer<typeof ListContactsResponseSchema>;
 export const RewardCodeParamSchema = z.object({
   code: z
     .string()
-    .trim()
-    .transform((v) => v.toUpperCase())
+    .transform((v) => v.replace(/[\s-]+/g, "").toUpperCase())
     .pipe(
       z
         .string()

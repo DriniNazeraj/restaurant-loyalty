@@ -154,6 +154,60 @@ describe('Restaurant QR Loyalty API', () => {
     expect(dbCheck.rows[0]?.device_token_hash).toBe(tokenHash);
     expect(dbCheck.rows[0]?.device_token_hash).not.toBe(noConsent.body.deviceToken);
 
+    // Repeat by phone (no token) with marketingConsent: true -> MUST NOT upgrade consent
+    const phoneAttack = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({ name: 'Attacker', phone: '+355695550001', email: 'sara@example.com', marketingConsent: true });
+    expect(phoneAttack.status).toBe(200);
+    expect(phoneAttack.body.alreadyClaimed).toBe(true);
+
+    // Repeat with wrong token and marketingConsent: true -> MUST NOT upgrade consent
+    const wrongTokenAttack = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({ name: 'Attacker', phone: '0695550001', marketingConsent: true, deviceToken: 'wrong-token-123456' });
+    expect(wrongTokenAttack.status).toBe(200);
+    expect(wrongTokenAttack.body.alreadyClaimed).toBe(true);
+
+    const afterAttack = await pool.query<{ marketing_consent: boolean; consented_at: Date | null }>(
+      `SELECT marketing_consent, consented_at FROM contacts WHERE phone_e164 = '+355695550001'`
+    );
+    expect(afterAttack.rows[0]?.marketing_consent).toBe(false);
+    expect(afterAttack.rows[0]?.consented_at).toBeNull();
+
+    // Repeat with matching deviceToken and marketingConsent: true -> upgrades consent with timestamp + text
+    const rightTokenUpgrade = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({
+        name: 'Sara Kola',
+        phone: '0695550001',
+        marketingConsent: true,
+        deviceToken: noConsent.body.deviceToken,
+      });
+    expect(rightTokenUpgrade.status).toBe(200);
+    expect(rightTokenUpgrade.body.alreadyClaimed).toBe(false);
+    const afterUpgrade = await pool.query<{ marketing_consent: boolean; consented_at: Date | null; consent_text: string | null }>(
+      `SELECT marketing_consent, consented_at, consent_text FROM contacts WHERE phone_e164 = '+355695550001'`
+    );
+    expect(afterUpgrade.rows[0]?.marketing_consent).toBe(true);
+    expect(afterUpgrade.rows[0]?.consented_at).toBeTruthy();
+    expect(afterUpgrade.rows[0]?.consent_text).toContain('[PH] Demo Bistro');
+
+    // Also test email-match without token with marketingConsent: true does NOT upgrade consent
+    const emailClaimNoConsent = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({ name: 'Ema', phone: '0695550003', email: 'ema@example.com', marketingConsent: false });
+    expect(emailClaimNoConsent.status).toBe(201);
+    const emailAttack = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({ name: 'Attacker', phone: '0695550004', email: 'EMA@example.com', marketingConsent: true });
+    expect(emailAttack.status).toBe(200);
+    expect(emailAttack.body.alreadyClaimed).toBe(true);
+    const emaRow = await pool.query<{ marketing_consent: boolean; consented_at: Date | null }>(
+      `SELECT marketing_consent, consented_at FROM contacts WHERE phone_e164 = '+355695550003'`
+    );
+    expect(emaRow.rows[0]?.marketing_consent).toBe(false);
+    expect(emaRow.rows[0]?.consented_at).toBeNull();
+
     // Explicit marketingConsent: true on signup -> consentedAt & consent_text saved
     const withConsent = await request(app)
       .post('/api/public/restaurants/demo-bistro/signups')
@@ -560,5 +614,53 @@ describe('Restaurant QR Loyalty API', () => {
       }
     }
     expect(hit429).toBe(true);
+  });
+
+  it('maps oversized bodies (>16kb) to 413 PAYLOAD_TOO_LARGE and malformed JSON to 400 INVALID_JSON', async () => {
+    const bigPayload = JSON.stringify({ name: 'Big', phone: '0691234567', pad: 'x'.repeat(1_100_000) });
+    const tooLarge = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .set('Content-Type', 'application/json')
+      .send(bigPayload);
+    expect(tooLarge.status).toBe(413);
+    expect(tooLarge.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+
+    const badJson = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .set('Content-Type', 'application/json')
+      .send('{"name": "broken"');
+    expect(badJson.status).toBe(400);
+    expect(badJson.body.error.code).toBe('INVALID_JSON');
+  });
+
+  it('normalizes reward code params by stripping whitespace and dashes and uppercasing across lookup/redeem/undo', async () => {
+    const signup = await request(app)
+      .post('/api/public/restaurants/demo-bistro/signups')
+      .send({ name: 'Code Guest', phone: '0693334444' });
+    expect(signup.status).toBe(201);
+    const code = signup.body.reward.code as string;
+    const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
+    const dashedLower = `${code.slice(0, 3).toLowerCase()}-${code.slice(3).toLowerCase()}`;
+
+    const staffToken = await loginAs('staff@demo-bistro.local');
+    const ownerToken = await loginAs('owner@demo-bistro.local');
+
+    const lookupRes = await request(app)
+      .get(`/api/rewards/${encodeURIComponent(spaced)}`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(lookupRes.status).toBe(200);
+    expect(lookupRes.body.reward.code).toBe(code);
+
+    const redeemRes = await request(app)
+      .post(`/api/rewards/${encodeURIComponent(dashedLower)}/redeem`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(redeemRes.status).toBe(200);
+    expect(redeemRes.body.reward.status).toBe('redeemed');
+
+    const undoRes = await request(app)
+      .post(`/api/rewards/${encodeURIComponent(spaced)}/undo-redeem`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(undoRes.status).toBe(200);
+    expect(undoRes.body.reward.status).toBe('active');
   });
 });

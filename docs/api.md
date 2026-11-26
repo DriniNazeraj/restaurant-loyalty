@@ -17,7 +17,9 @@ Base URL (local dev): `http://localhost:3001` (prefix `/api`).
   }
   ```
 - **Stable Error Codes:**
-  - `VALIDATION_ERROR` (`400`) — Zod validation or malformed request
+  - `VALIDATION_ERROR` (`400`) — Zod validation error
+  - `INVALID_JSON` (`400`) — malformed JSON request body
+  - `PAYLOAD_TOO_LARGE` (`413`) — request body exceeds 16kb limit
   - `UNAUTHORIZED` (`401`) — missing, malformed, invalid, or expired JWT / bad login credentials
   - `FORBIDDEN` (`403`) — authenticated `staff` user lacks `owner` role
   - `NOT_FOUND` (`404`) — missing resource OR resource belongs to another restaurant (never `403` across tenants)
@@ -51,7 +53,7 @@ Base URL (local dev): `http://localhost:3001` (prefix `/api`).
    - On **re-submit**, front end reads `deviceToken` from `localStorage` for that `slug` and sends it in the signup body (`deviceToken`).
      - If `sha256(deviceToken)` matches the matched reward's `device_token_hash` -> `200` `{ isExisting: true, alreadyClaimed: false, firstName, deviceToken, reward }`.
      - Otherwise (different device / cleared storage / missing or wrong `deviceToken`) -> `200` `{ isExisting: true, alreadyClaimed: true, maskedCode: "••••N9", last2: "N9", status, message: "Already claimed — ask your waiter" }`, with **no** full code, name, or PII.
-   - Repeat claims **never** overwrite stored contact details (only upgrade `marketing_consent` from `false` to `true` with `consented_at` + `consent_text`).
+   - Repeat claims **never** overwrite stored contact details; without a matching `deviceToken`, **nothing** changes on the contact (not even consent). Consent upgrades (`false` → `true` with `consented_at` + `consent_text`) happen **only** when the supplied `deviceToken` matches the reward.
    - Guest ticket status polling uses `GET /api/public/claims/:deviceToken` (never the reward code), returning `{ status, redeemedAt }` only.
 3. **Consent:** `marketingConsent` defaults to `false` if omitted. Non-consented contacts are **never** included in any campaign audience or send.
 4. **Birthdays this week:** Evaluated in the restaurant's timezone (`Europe/Tirane` default) over the **Monday–Sunday calendar week** containing today. Feb 29 birthdays count as **Feb 28** in non-leap years. Dec/Jan week wraps are handled.
@@ -119,6 +121,8 @@ All staff endpoints require `Authorization: Bearer <token>` (`401 UNAUTHORIZED` 
 - `200` (`text/csv; charset=utf-8`): Columns `name,phone,email,birthday,marketing_consent,consented_at,reward_code,reward_status,reward_redeemed_at,reward_expires_at,created_at`
 
 ### Rewards & Redemption
+
+All `:code` params are normalized server-side by stripping all whitespace and dashes and uppercasing before validation (e.g. `ab7-k2q` or `AB7 K2Q` → `AB7K2Q`).
 
 #### `GET /api/rewards/:code`
 - Auth: Staff JWT (`owner` | `staff`, rate-limited)

@@ -56,7 +56,7 @@ export function createApp(options: CreateAppOptions) {
       credentials: false,
     })
   );
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '16kb' }));
 
   const limiters = createRateLimiters(disableRateLimit);
   const requireStaffAuth = createRequireStaffAuth(jwtSecret);
@@ -84,14 +84,16 @@ export function createApp(options: CreateAppOptions) {
       return;
     }
 
-    if (
-      typeof err === 'object' &&
-      err !== null &&
-      'type' in err &&
-      (err as { type?: string }).type === 'entity.parse.failed'
-    ) {
-      sendError(res, 400, 'VALIDATION_ERROR', 'Malformed JSON body');
-      return;
+    if (typeof err === 'object' && err !== null && 'type' in err) {
+      const bodyErrType = (err as { type?: string }).type;
+      if (bodyErrType === 'entity.too.large') {
+        sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds 16kb limit');
+        return;
+      }
+      if (bodyErrType === 'entity.parse.failed') {
+        sendError(res, 400, 'INVALID_JSON', 'Malformed JSON body');
+        return;
+      }
     }
 
     console.error('Unhandled server error:', err);
