@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "@/lib/router-hooks";
-import { CopyIcon, Loader2Icon, PlugIcon, TriangleAlertIcon } from "lucide-react";
+import { CopyIcon, Loader2Icon, PlugZapIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ForbiddenNotice } from "@/components/staff/OwnerOnly";
 import { PageHeader } from "@/components/staff/PageHeader";
@@ -265,7 +265,7 @@ export default function CampaignEditPage() {
             {/* span wrapper so the tooltip still works on a disabled button */}
             <span tabIndex={0} className="rounded-xl">
               <Button className="pointer-events-none h-11 rounded-xl" disabled data-testid="campaign-send" aria-describedby="send-note">
-                <PlugIcon className="size-4" aria-hidden />
+                <PlugZapIcon className="size-4" aria-hidden />
                 Sending not connected yet
               </Button>
             </span>

@@ -22,7 +22,7 @@ export default function RewardPage() {
   const welcomeBack = Boolean(useLocationState<{ welcomeBack?: boolean }>()?.welcomeBack);
   const [restaurantState] = usePublicRestaurant(slug);
   const restaurant = restaurantState.kind === "ready" ? restaurantState.restaurant : null;
-  const restaurantName = restaurant?.name ?? PH.restaurantName;
+  const restaurantName = restaurant?.name ?? "";
 
   // The full code only exists on the phone that claimed it (cached at signup).
   const [ticket, setTicket] = useState(() => readTicket(slug, token));
@@ -66,7 +66,7 @@ export default function RewardPage() {
           <h1 className="font-heading text-2xl font-bold text-ink">We can't find this reward</h1>
           <p className="mt-2 text-ink-muted">The link may be incomplete. Ask your waiter, they can find it with your phone number.</p>
           <Link className="mt-4 inline-block font-semibold text-brand underline" to={`/r/${slug}`}>
-            Back to {restaurantName}
+            Back to {restaurantName || "the offer"}
           </Link>
         </div>
       </CustomerLayout>
@@ -77,6 +77,7 @@ export default function RewardPage() {
     // Link opened on another phone / storage cleared: never reveal the code here.
     return (
       <CustomerLayout restaurantName={restaurantName}>
+        <h1 className="sr-only">Your reward at {restaurantName}</h1>
         <div className="mt-6">
           <AlreadyClaimedCard status={status ?? undefined} />
         </div>
@@ -88,6 +89,7 @@ export default function RewardPage() {
 
   return (
     <CustomerLayout restaurantName={restaurantName}>
+      <h1 className="sr-only">Your reward at {restaurantName}</h1>
       {welcomeBack && effectiveStatus === "active" ? (
         <p className="mt-2 rounded-xl bg-brand-soft px-4 py-3 text-sm text-ink" role="status">
           Welcome back, you already have a reward

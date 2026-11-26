@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/lib/router";
-import { ChevronRightIcon, MegaphoneIcon, PlugIcon } from "lucide-react";
+import { CheckCircle2Icon, ChevronRightIcon, MegaphoneIcon, PencilLineIcon, PlugZapIcon } from "lucide-react";
 import { PageHeader } from "@/components/staff/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,11 +11,24 @@ import { getStaffToken, isOwner, useStaffSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 
 function StatusBadge({ status }: { status: CampaignStatus }) {
-  if (status === "draft") return <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-ink-muted">Draft</span>;
-  if (status === "ready") return <span className="rounded-full bg-olive px-2 py-0.5 text-xs font-medium text-white">Ready</span>;
+  // DESIGN.md §7/§8c: every status is icon + word, never colour alone.
+  if (status === "draft") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-ink-muted">
+        <PencilLineIcon className="size-3" aria-hidden /> Draft
+      </span>
+    );
+  }
+  if (status === "ready") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-olive px-2 py-0.5 text-xs font-medium text-white">
+        <CheckCircle2Icon className="size-3" aria-hidden /> Ready
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-ink-muted">
-      <PlugIcon className="size-3" aria-hidden /> Not sent
+      <PlugZapIcon className="size-3" aria-hidden /> Not sent
     </span>
   );
 }

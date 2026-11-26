@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate } from "@/lib/router";
 import { useLocationState, useNavigate } from "@/lib/router-hooks";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/sonner";
 import { ApiError, api } from "@/lib/api";
 import { saveStaffSession, useStaffSession } from "@/lib/auth";
+import { readDocumentMeta, setDocumentMeta } from "@/lib/document-meta";
 import { applyRestaurantTheme } from "@/lib/restaurant-theme";
 import { PH } from "@/lib/placeholders";
 
@@ -29,6 +30,15 @@ export default function LoginPage() {
   const session = useStaffSession();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const previous = readDocumentMeta();
+    setDocumentMeta({
+      title: `Staff sign in · ${PH.productName}`,
+      description: `Sign in to ${PH.productName} to redeem guest rewards, see contacts and print QR cards.`,
+    });
+    return () => setDocumentMeta(previous);
+  }, []);
 
   const form = useForm<LoginValues>({
     resolver: standardSchemaResolver(loginSchema),

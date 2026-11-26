@@ -7,22 +7,21 @@ const LandingPage = lazy(() => import("@/pages/customer/LandingPage"));
 const RewardPage = lazy(() => import("@/pages/customer/RewardPage"));
 const LoginPage = lazy(() => import("@/pages/staff/LoginPage"));
 const StaffApp = lazy(() => import("@/pages/staff/StaffApp"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 export default function App() {
   return (
     <Suspense fallback={<div className="min-h-svh" aria-busy="true" />}>
       <Switch>
         <Route path="/">
-          <Navigate to={`/r/${PH.restaurantSlug}`} />
+          <Navigate to={`/r/${PH.homeSlug}`} />
         </Route>
         <Route path="/r/:slug" component={LandingPage} />
         <Route path="/r/:slug/reward/:token" component={RewardPage} />
         <Route path="/admin/login" component={LoginPage} />
         <Route path="/admin" component={StaffApp} />
         <Route path="/admin/*" component={StaffApp} />
-        <Route>
-          <Navigate to={`/r/${PH.restaurantSlug}`} />
-        </Route>
+        <Route component={NotFoundPage} />
       </Switch>
     </Suspense>
   );

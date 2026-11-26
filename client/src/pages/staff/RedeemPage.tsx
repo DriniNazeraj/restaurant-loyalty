@@ -16,6 +16,7 @@ import {
   isCompleteRewardCode,
   normalizeRewardCode,
   stripCodeWhitespace,
+  stripSeparatorsOnInsert,
 } from "@/lib/reward-code";
 
 const DONE_RESET_MS = 6000;
@@ -40,6 +41,12 @@ export default function RedeemPage() {
   const [phoneMatches, setPhoneMatches] = useState<ContactWithReward[] | null>(null);
   const lastChecked = useRef("");
   const otpRef = useRef<HTMLInputElement>(null);
+
+  // A typed/inserted space or dash must never use up a box (QA round 1 #6).
+  useEffect(() => {
+    const input = otpRef.current;
+    return input ? stripSeparatorsOnInsert(input) : undefined;
+  }, []);
 
   useEffect(() => {
     if (result?.kind !== "done") return;

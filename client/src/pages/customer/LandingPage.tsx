@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Controller, useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { Link } from "@/lib/router";
 import { useNavigate, useParams } from "@/lib/router-hooks";
@@ -60,9 +60,9 @@ const resolver: Resolver<Values> = (raw) => {
   else if (values.email.length > 254) fail("email", "That email looks too long");
   else if (!EMAIL_RE.test(values.email)) fail("email", "Enter a valid email");
 
-  if (!!values.birthDay !== !!values.birthMonth) fail("birthDay", "Pick both day and month, or leave both empty");
+  if (!!values.birthDay !== !!values.birthMonth) fail("birthDay", "Pick day and month, or neither");
   else if (values.birthDay && Number(values.birthDay) > DAYS_IN_MONTH[Number(values.birthMonth) - 1]) {
-    fail("birthDay", "That day doesn't exist in that month");
+    fail("birthDay", "That day isn't in that month");
   }
 
   return Object.keys(errors).length ? { values: {}, errors } : { values, errors: {} };
@@ -117,7 +117,9 @@ export default function LandingPage() {
   const { errors, isSubmitting } = form.formState;
 
   const restaurant = restaurantState.kind === "ready" ? restaurantState.restaurant : null;
-  const restaurantName = restaurant?.name ?? PH.restaurantName;
+  const restaurantName = restaurant?.name ?? "";
+  const rewardTitle = restaurant?.rewardTitle.trim() ?? "";
+  const rewardLower = rewardTitle.toLowerCase();
 
   async function onSubmit(values: Values) {
     setSubmitError(null);
@@ -176,7 +178,7 @@ export default function LandingPage() {
 
   if (restaurantState.kind === "not_found") {
     return (
-      <CustomerLayout restaurantName={PH.restaurantName}>
+      <CustomerLayout restaurantName="">
         <div className="mt-8 rounded-2xl bg-surface p-6 shadow-sm">
           <h1 className="font-heading text-2xl font-bold text-ink">We couldn't find this restaurant</h1>
           <p className="mt-2 text-ink-muted">Check the QR code on your table, or ask your waiter.</p>
@@ -188,17 +190,15 @@ export default function LandingPage() {
   const ended = offerEnded || restaurant?.offerActive === false;
 
   return (
-    <CustomerLayout restaurantName={restaurantName}>
+    <CustomerLayout restaurantName={restaurantName} gap="gap-3">
       {masked ? (
         <AlreadyClaimedCard last2={masked.last2} status={masked.status} />
       ) : (
         <>
           <section>
-            <p className="text-sm font-semibold text-brand">Welcome to {restaurantName}</p>
-            <h1 className="mt-1 font-heading text-4xl leading-tight font-bold text-ink">
-              {PH.offerHeadline}
-            </h1>
-            <p className="mt-2 text-ink-muted">{PH.offerSub}</p>
+            <p className="min-h-5 text-sm font-semibold text-brand">{restaurantName ? `Welcome to ${restaurantName}` : ""}</p>
+            <OfferHeadline rewardTitle={rewardTitle} />
+            <p className="mt-1 text-ink-muted">{PH.offerSub}</p>
           </section>
 
           {existingTicket && !ended ? (
@@ -222,7 +222,7 @@ export default function LandingPage() {
               <p className="text-lg text-ink">This offer has ended. Thanks for visiting {restaurantName}.</p>
             </div>
           ) : (
-            <form className="rounded-2xl bg-surface p-5 shadow-sm" onSubmit={submit} noValidate>
+            <form className="rounded-2xl bg-surface p-4 shadow-sm" onSubmit={submit} noValidate>
               <div className="flex flex-col gap-4">
                 <TextField
                   id="name"
@@ -349,19 +349,21 @@ export default function LandingPage() {
                   type="submit"
                   data-testid="claim-submit"
                   disabled={isSubmitting || restaurantState.kind === "loading"}
-                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand text-lg font-semibold text-brand-fg transition-colors hover:bg-brand/90 disabled:opacity-60"
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-center text-lg leading-tight font-semibold text-brand-fg transition-colors hover:bg-brand/90 disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2Icon className="size-5 animate-spin" aria-hidden />
                       Getting your code…
                     </>
+                  ) : rewardLower ? (
+                    `Get my ${rewardLower}`
                   ) : (
-                    PH.cta
+                    PH.ctaFallback
                   )}
                 </button>
                 <p id="consent-note" className="text-xs text-ink-muted">
-                  Your free appetizer doesn't depend on the box above. Privacy notice [PH]
+                  Your {rewardLower || "reward"} doesn't depend on the box above. Privacy notice [PH]
                 </p>
               </div>
             </form>
@@ -369,6 +371,42 @@ export default function LandingPage() {
         </>
       )}
     </CustomerLayout>
+  );
+}
+
+const H1_CLASS = "font-heading text-3xl leading-tight font-bold text-ink min-[400px]:text-4xl";
+
+/**
+ * DESIGN.md §8c: "{rewardTitle} on us" when it fits on 2 lines, otherwise just "{rewardTitle}".
+ * An invisible copy with the long text is measured, so the visible h1 never flickers or loops.
+ */
+function OfferHeadline({ rewardTitle }: { rewardTitle: string }) {
+  const probeRef = useRef<HTMLParagraphElement>(null);
+  const [fitsLong, setFitsLong] = useState(true);
+  const long = rewardTitle ? `${rewardTitle} on us` : "";
+
+  useLayoutEffect(() => {
+    const probe = probeRef.current;
+    if (!probe || !long) return;
+    const measure = () => {
+      const lineHeight = Number.parseFloat(getComputedStyle(probe).lineHeight) || 1;
+      setFitsLong(Math.round(probe.getBoundingClientRect().height / lineHeight) <= 2);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(probe);
+    return () => observer.disconnect();
+  }, [long]);
+
+  return (
+    <div className="relative mt-1">
+      {long ? (
+        <p ref={probeRef} aria-hidden className={`${H1_CLASS} pointer-events-none invisible absolute inset-x-0 top-0`}>
+          {long}
+        </p>
+      ) : null}
+      {/* min-h keeps the form from jumping while the restaurant loads. */}
+      <h1 className={`${H1_CLASS} min-h-[1.25em]`}>{fitsLong ? long : rewardTitle}</h1>
+    </div>
   );
 }
 

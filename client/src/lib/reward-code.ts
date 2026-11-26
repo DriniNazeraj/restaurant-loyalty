@@ -8,9 +8,11 @@ export function normalizeRewardCode(raw: string): string {
   return raw.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
 }
 
-/** Uppercase and drop whitespace only, keeping other characters so we can hint about them. */
+const CODE_SEPARATORS = /[\s\u00A0\u200B-]/;
+
+/** Uppercase and drop spaces/dashes only, keeping other characters so we can hint about them. */
 export function stripCodeWhitespace(raw: string): string {
-  return raw.toUpperCase().replaceAll(/[\s\u00A0\u200B-]/g, "");
+  return raw.toUpperCase().replaceAll(new RegExp(CODE_SEPARATORS.source, "g"), "");
 }
 
 export function isAmbiguousCodeChar(char: string): boolean {
@@ -31,4 +33,26 @@ export function isCompleteRewardCode(code: string): boolean {
 
 export function spellRewardCode(code: string): string {
   return [...code].join(" ");
+}
+
+/**
+ * Strips spaces/dashes from text *before* the browser inserts it. Needed for the 6-box input:
+ * input-otp caps the value at 6 (native maxlength + slice), so "n2k ubm" arriving in one input
+ * event (autocomplete, IME commit, dictation) would otherwise lose its last letter to the space.
+ * Returns a cleanup function.
+ */
+export function stripSeparatorsOnInsert(input: HTMLInputElement): () => void {
+  const onBeforeInput = (event: InputEvent) => {
+    if (!event.inputType.startsWith("insert") || event.data == null) return;
+    if (!CODE_SEPARATORS.test(event.data)) return;
+    event.preventDefault();
+    const clean = stripCodeWhitespace(event.data);
+    if (!clean) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    input.setRangeText(clean, start, end, "end");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  input.addEventListener("beforeinput", onBeforeInput);
+  return () => input.removeEventListener("beforeinput", onBeforeInput);
 }
